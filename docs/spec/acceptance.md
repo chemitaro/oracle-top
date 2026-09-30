@@ -26,6 +26,8 @@
 
 上記expected current.elapsedMs=120000、project=sample-project、24H=1、7D=1。lease2件ならactive=2、maximum=3、utilization=2/3。JSONの率は丸めず、textは66.7%。
 
+追加送信のfixtureは `options.browserFollowUps` に配置します。root直下の同名キーは集計へ使いません。
+
 ## 振る舞い
 
 | Case | R-ID | 公開境界 | 入力・期待値 | 計画 |

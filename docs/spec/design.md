@@ -225,7 +225,7 @@ YYYY-MM-DDTHH:mm:ss[.1〜3桁](Z または ±HH:mm)
 
 初回は厳密なboolean trueだけです。`"true"`、`1`、欠損をtrue扱いしません。
 
-`browserFollowUps` は、**すべての要素がtrim後非空のstringである配列**を有効とします。
+保存位置は `options.browserFollowUps` です（Oracle根拠資料と会話基準に記録済み）。**すべての要素がtrim後非空のstringである配列**を有効とします。root直下の同名キーは読みません。
 
 | 入力 | 初回true時の加算 |
 |---|---:|

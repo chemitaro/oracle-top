@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02・P03はcheckpoint済み、P04の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P05〜P10は未実施で、製品実装は未完了です。
+状態: P02〜P04はcheckpoint済み、P05の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P06〜P10は未実施で、製品実装は未完了です。
 
 ## 実装環境と基準
 
@@ -174,19 +174,102 @@ propagates-abort-without-warning
 
 新規checkoutのscratch不存在でもfixtureが成立するよう、setupが`.workbench/p04`を作成します。必要なsource/test/package/configと既存node_modulesのsymlinkだけを一時checkoutへ配置し、`.workbench`／`.workbench/p04`の事前不存在と対象入力hash一致をassertして22件を実行しました。clone／ネットワーク処理はありません。証拠は`.workbench/p04/fresh-checkout-proof.txt`へ保持し、コピーした一時checkoutは検証後に除去しました。
 
-P04 checkpoint SHA: 未作成（primaryが差分確認・commitを担当）。stage・commit・push・branch変更はしていません。P05〜P10と製品受け入れ全体は未検証です。
+P04 checkpoint SHA: `3b1c947c5caa8232b6660724de756571d19a9bb8`（primaryによる完全差分確認・commit済み）。この実装担当はstage・commit・push・branch変更をしていません。
+
+## P05 — sessionの限定投影と厳密な日時解析
+
+開始時は`main`／`3b1c947c5caa8232b6660724de756571d19a9bb8`／cleanを確認しました。作業中のREADME・overview・正式仕様への保存位置転記はprimary所有の変更として保持しました。
+
+`normalizeSession(raw, directoryId)`はown propertyだけを読み、限定したNormalizedSessionまたは除外結果と閉じたDataWarningを返します。raw全文、prompt、URL、PID、cookie、秘密値を保持しません。browser modeを確認したうえでGPT prefix／許可位置の正規ChatGPT hostnameを採用根拠とし、API、Gemini、根拠不明、矛盾するmode/providerを隔離します。保存model／effortの大文字小文字や未知statusを変換しません。未知statusでも初回boolean trueの1件を後続集計へ渡せます。任意フィールドの不正で正常な他フィールドを捨てません。
+
+profile／maximumは指定された保存2箇所から必要値だけを投影します。相対パスを保存cwd基準で論理解決し、有効な絶対cwdがなければ絶対profile文字列も所属根拠として採用しません。未知のmetadataパスを探索するI/Oはありません。follow-upは`options.browserFollowUps`の配列全体を検証し、completedかつ初回trueの場合だけ長さを追加します。重複を保持し、prompt文字列は返しません。警告を重複除去してコード単位順にし、表示制御文字の存在だけを警告します。実際の表示サニタイズはP07です。
+
+`parseIsoTimestamp(unknown)`はtimezoneを必須とし、年0001〜9999、実在する暦日、通常時分秒、fraction 1〜3桁、offset時00〜23／分00〜59を検証して整数epoch millisecondsまたはnullを返します。0001／0099年を1900年代へ補正しません。開始とreliabilityのfallbackは独立し、有効な未来日時もその数値を保持します。clock取得・未来判定・集計窓・件数集約はP06です。
+
+### Focused Red→Green証拠
+
+選択commandは`npm test -- tests/<suite>.test.ts -t '^<テスト名>$' --reporter=verbose`です。下表32件は各回対象1件、assertion失敗のRed exit 1からGreen exit 0を確認しました。最初のRedは実行可能stubの戻り値assertion不一致で、import失敗ではありません。元stdout/stderrと選択commandは`.workbench/p05/cycles.log`に順序どおり保持しています。
+
+| suite | テスト名 | Red exit | Green exit |
+|---|---|---:|---:|
+| normalize | normalizes-browser-gpt-session | 1 | 0 |
+| normalize | excludes-api-despite-browser-remnants | 1 | 0 |
+| normalize | excludes-gemini-models | 1 | 0 |
+| normalize | rejects-unknown-model-without-provider-evidence | 1 | 0 |
+| normalize | includes-unknown-model-with-chatgpt-url | 1 | 0 |
+| normalize | excludes-conflicting-provider-evidence | 1 | 0 |
+| normalize | does-not-infer-browser-mode | 1 | 0 |
+| normalize | excludes-conflicting-known-modes | 1 | 0 |
+| normalize | preserves-unrecognized-status | 1 | 0 |
+| normalize | resolves-independent-time-fallbacks | 1 | 0 |
+| normalize | counts-first-submission-only-for-boolean-true | 1 | 0 |
+| normalize | excludes-gemini-prefix-even-with-slash | 1 | 0 |
+| normalize | reads-followups-from-options | 1 | 0 |
+| normalize | warns-unrecorded-terminal-submission | 1 | 0 |
+| normalize | isolates-invalid-root-without-derived-warnings | 1 | 0 |
+| normalize | uses-directory-id-on-metadata-mismatch | 1 | 0 |
+| normalize | requested-effort-precedes-browser-config | 1 | 0 |
+| normalize | project-requires-valid-absolute-cwd | 1 | 0 |
+| normalize | invalid-mode-type-falls-back-with-warning | 1 | 0 |
+| normalize | invalid-display-fields-use-independent-fallbacks | 1 | 0 |
+| normalize | checks-nested-objects-without-discarding-session | 1 | 0 |
+| normalize | projects-logical-profile-and-capacity | 1 | 0 |
+| normalize | warns-conflicting-valid-saved-capacity-fields | 1 | 0 |
+| normalize | cwd-unavailable-leaves-absolute-profile-unresolved | 1 | 0 |
+| normalize | detects-display-controls-without-changing-saved-values | 1 | 0 |
+| normalize | deduplicates-and-orders-warning-codes | 1 | 0 |
+| normalize | invalid-submission-type-does-not-coerce | 1 | 0 |
+| normalize | invalid-cwd-warns-and-keeps-profile-unresolved | 1 | 0 |
+| normalize | invalid-url-field-does-not-discard-gpt-session | 1 | 0 |
+| normalize | rejects-sparse-followup-array | 1 | 0 |
+| time | parses-timezone-qualified-iso | 1 | 0 |
+| time | rejects-invalid-iso-and-calendar-dates | 1 | 0 |
+
+最初のfollow-up2件では保存位置を誤ってroot直下に置いたため、その旧Red／Greenは正式証拠から除外します。Oracle根拠資料・会話基準の保存位置を確認して`options.browserFollowUps`へ訂正し、異なるroot配列を無視する`reads-followups-from-options`を新しいRed→Greenとして上表へ記録しました。旧ログは削除せず保持しています。訂正後の2件は`-t '^(counts-completed-followups-without-retaining-prompts|rejects-entire-incomplete-followup-array)$'`で対象2件・exit 0を確認し、下の回帰確認へ分類しました。
+
+次の14件は現行の正規fixtureで初回exit 0だった回帰確認です。Red証拠とは扱いません。同じ選択commandと元ログを保持しています（上記2件のみまとめて選択）。
+
+```text
+time: preserves-early-years-fractions-and-leap-rules
+normalize: preserves-valid-future-time-without-fallback
+normalize: counts-completed-followups-without-retaining-prompts
+normalize: rejects-entire-incomplete-followup-array
+normalize: accepts-only-allowed-url-fields-and-exact-hosts
+normalize: gemini-options-and-url-always-exclude
+normalize: unknown-mode-does-not-fall-back-but-missing-mode-does
+normalize: preserves-model-effort-case-and-unknown-values
+normalize: followups-require-completed-and-first-true
+normalize: invalid-profile-and-max-fall-back-independently
+normalize: returns-only-limited-projection
+normalize: ignores-inherited-fields-and-unknown-keys
+normalize: missing-and-invalid-time-fields-remain-explicit
+normalize: capacity-accepts-only-positive-safe-numbers
+```
+
+### 工程の最終検証
+
+| コマンド | exit | 結果・ログ |
+|---|---:|---|
+| `npm test -- tests/normalize.test.ts tests/time.test.ts --reporter=verbose` | 0 | 46件pass（normalize 43／time 3）、`.workbench/p05/suite.log` |
+| `npm run typecheck` | 0 | 型検査成功、`.workbench/p05/typecheck.log` |
+| `npm run check` | 0 | format／typecheck／全97件test／build成功、`.workbench/p05/check.log` |
+| `git diff --check` | 0 | 空白エラーなし |
+
+fixtureはメモリ内の合成objectだけで、scratch directoryの事前存在に依存しません。実Oracleデータ・秘密値は使っていません。P05 checkpoint SHAは未作成で、primaryが完全差分確認・commitを担当します。この実装担当はstage・commit・push・branch変更をしていません。
+
+primaryはREADME・説明HTMLを実装中の状態へ同期し、設計書と受け入れ表へ既存根拠どおりの保存位置 `options.browserFollowUps` を明記しました。`python3 scripts/check-planning.py` はexit 0です。使用スキル付属の `/Users/iwasawayuuta/.agents/skills/japanese-explanatory-html/scripts/validate-plantuml-html.mjs docs/overview.html` も最終編集後にexit 0で、SVG描画1/1、クリック・キーボード拡大、倍率境界、focus trap、終了とfocus復元を確認しました。このブラウザ検証は説明資料のもので、未実装の製品TUIの証拠とは扱いません。planning ZIPは準備完了時点の資料として残し、最終納品時に同期します。
 
 ## 残工程と再開条件
 
 | 工程 | 状態 | 残る証拠 |
 |---|---|---|
 | P03 | checkpoint済み | 上限付きreadの29テストとfocused履歴 |
-| P04 | 実装・局所検証済み、checkpoint待ち | 設定・intervalの22テストとfocused履歴 |
-| P05 | 未実施 | session投影・日時・未知値 |
+| P04 | checkpoint済み | 設定・intervalの22テストとfocused履歴 |
+| P05 | 実装・局所検証済み、checkpoint待ち | 限定投影・日時の46テストとfocused履歴 |
 | P06 | 未実施 | 走査・集計・capacity・Snapshot不変条件 |
 | P07 | 未実施 | text／JSON描画・Schema検証 |
 | P08 | 未実施 | built CLI・bin・単発プロセス契約 |
 | P09 | 未実施 | TUI終了・復元・resize・非重複poll |
 | P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
 
-P05開始条件は、primaryがP04の完全差分を確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。
+P06開始条件は、primaryがP05の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
