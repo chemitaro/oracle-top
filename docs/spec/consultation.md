@@ -11,10 +11,21 @@
 | --- | --- | --- | --- |
 | oracle-top-design-plan | 指定会話の/c/URL | gpt-6-pro / pro | chat-mode-selection / conversation-unresolved、送信前error、exit1 |
 | oracle-top-design-retry | ブラウザで確認した同じ会話のproject付きURL | gpt-6-pro / pro | ユーザーの再実行指示で1回実施。同じ送信前error、exit1 |
+| oracle-top-design-restored | 同じproject付き会話URL、入力SHA 9bb3a1732c9e995bb173f1f1f0d6585da54f14ab | gpt-6-pro / pro、modelStrategy=select | Oracle復旧後の直接Strict実行指示で1回実施。2026-09-30 16:16 JSTに同じ送信前error、exit1 |
 
 Oracle 0.21.3、実体CLIのリンク先、HEAD、source/build freshness、session metadata、output.logを確認した。新しいsourceはbuilt CLIより後に存在しない。両セッションはerror、promptSubmittedは未記録。設計回答は生成・取得されていない。
 通常のChromeでは同じ会話の既存回答が表示できることを確認した。OracleのChat/Work判定はsidebarの信頼できるhistory要素を必要としており、今回の会話では確認できなかった。root causeを修復したとは主張しない。
 新しい会話やAPIへ切り替えず、Oracle source/profile/leaseを変更しなかった。
+
+## 手動準備と復旧後の確認
+
+ユーザーの明示指示でchatgpt-manual-useを組み合わせ、Strict wrapperから9bb3a17に固定した入力bundleを出力した。8添付は元ファイルとバイト一致した。内蔵ブラウザはCAPTCHAで停止し、手動送信は行わなかった。その後ユーザーが手動方式を取り下げ、復旧後のOracleによる直接Strict実行を指定した。
+
+復旧後のOracleは0.21.3、personal-use-v3、HEAD 5ebdd42b7a40b03bd6a14cb5e13f7d2124611b4c。PATHの実体は同じdist/bin/oracle-cli.js。buildより新しい入力sourceはなく、初回根拠のsessionManager.ts / oracleHome.ts / browser/config.ts / browser/tabLeaseRegistry.ts / cli/followup.tsは旧HEADから差分がなかった。
+
+oracle-top-design-restoredはstatus=error、promptSubmitted未記録、submittedPromptHash=null、回答ファイルなし。leaseは解放され、実行は終了した。参照会話の最新turnは元の要件整理のままだった。進行中処理として再送待ちをしない。
+
+src/browser/actions/navigation.tsの既存会話判定は、同じconversationIdのsidebar history linkと識別ラベルを確認できない場合にconversation-unresolvedを返す。既存会話では最大10秒確認してから停止する。この分岐に到達したことは確認できたが、どのDOM要素が欠けたかは未特定。別モデルや新規会話の成功を、この既存会話の復旧証拠とはしない。安全判定を回避するflagやsource変更は行わない。
 
 ## 現在のゲート
 

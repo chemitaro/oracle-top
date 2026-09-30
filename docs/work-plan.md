@@ -20,6 +20,8 @@
 
 相談入力コミットb2ff1f4でclean状態とGitHub SHA一致を確認した。Oracle実行とユーザー指示による再実行は、いずれもchat-mode-selection / conversation-unresolvedで送信前に終了した。Strict相談の回答は取得できていない。
 
+下書きチェックポイント9bb3a17をpush済み。手動入力準備はCAPTCHAで未送信のまま、ユーザー指示により直接Strictへ戻した。復旧後のpersonal-use-v3でもoracle-top-design-restoredは同じ送信前エラーで終了した。既存会話のモード確認が再開条件として残る。
+
 下書きを検証・パッケージ化してチェックポイントとして保存する。正式化とready=trueは同じ会話でのStrict相談を完了してから行う。ゴールは未達であり、ツール本体の実装は開始しない。
 
 検証の範囲と再開条件は[検証記録](spec/verification.md)および[相談記録](spec/consultation.md)に記載する。
