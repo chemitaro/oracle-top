@@ -35,7 +35,7 @@
 ユーザーの実装開始指示に従い、正式仕様のP02〜P10をGPT 6.1 Sol／Highで実装します。公開境界の一つの振る舞いごとにTDDのRed→Greenを実施します。必要な具体化にはGPT 5.6 ProによるImplementation Brief Strict、技術相談には仕様策定と同じ会話のChatGPT Use Strictを利用できます。Final Quality Gateは実施しません。
 
 - [x] P02 開発基盤・型契約
-- [ ] P03 上限付き読み取り
+- [x] P03 上限付き読み取り
 - [ ] P04 設定・root/profile解決
 - [ ] P05 セッション・日時投影
 - [ ] P06 走査・集計・capacity
