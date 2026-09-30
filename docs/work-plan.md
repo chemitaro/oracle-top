@@ -8,8 +8,8 @@
 
 - [x] 参照会話全件取得（5往復、hasMore=false）と最新合意の抽出
 - [x] 空ディレクトリ確認、Git main 初期化、作業用 .workbench 確保
-- [ ] 初期環境整備、公開GitHubリポジトリ作成、初回コミットとpush
-- [ ] Oracle実装と会話の仮定を照合して根拠資料を作成
+- [x] 初期環境整備、公開GitHubリポジトリ作成、初回コミットとpush（f14d483、chemitaro/oracle-top）
+- [x] Oracle実装と会話の仮定を照合して根拠資料を作成
 - [ ] clean HEAD / GitHub upstream SHA一致を確認し、同じChatGPT会話で chatgpt-use-strict 設計相談
 - [ ] 回答をローカル証拠へ照合し、正式R/D/Pと受け入れ条件・実装ゲートを具体化
 - [ ] 説明HTML作成、ブラウザ検証、ZIP作成と内容照合
