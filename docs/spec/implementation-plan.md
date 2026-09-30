@@ -235,12 +235,25 @@ npm run typecheck
 ## P10 — 配布・TTY・安全性・性能・最終文書
 
 **依存：** P09です。
-**対象：** `tests/{integration,performance}.test.ts`、smoke／performance用script、README、受け入れ表、実装report、CIです。
+**対象：** `tests/{integration,performance}.test.ts`、smoke／performance用script、README、受け入れ表、実装report、CIです。実測で必要になった最小の内部I/O改善は下記の順で実施します。
 **公開境界：** tarballから導入したCLIと実TTYです。
 
 未対応の全A-caseを一件ずつRed→Greenで閉じます。文書にpassを書くことでテストを通したことにはしません。
 
 具体fixtureは1,000件×16KiB以下です。読取前後のtree、内容hash、mtime、modeを比較し、スロット台帳を含め変更がないことを確認します。OSによるatime更新は、この書込み禁止証拠の比較対象から除きます。
+
+### 実測を受けた内部I/O改善の順序（2026-10-01）
+
+元の60秒測定でCPU超過を確認しました。設計5.1／5.6／5.8／5.9の補足に従い、保存値・全件再読込・変更検知・終了時の復元・同時scan1／read最大8を維持します。試作の数値を製品の合格証拠として流用しません。
+
+1. `src/io/read-buffer.ts` とreaderの任意poolを追加します。排他貸出、成長copy、上限1MiB+1、旧領域・返却時のzero化、finally返却を検証します。stat.size到達時の条件付きEOF省略も別のfocused Red→Greenにし、size未達short read、size0、途中grow、全post検査、abort／closeの既存証拠を維持します。
+2. `src/io/collector.ts` の `createInputCollector`／collect／stopと最小WorkerPortを実行可能stubで用意します。`workerFactory`でOS境界だけを注入し、遅延起動、1本再利用、nowの1回捕捉、必要設定の固定、非重複を公開結果からRed→Greenにします。export／compile失敗をRedとは扱いません。
+3. collector側で、`normalizeSession`が返したNormalizedSessionだけをstructuredCloneします。Unicodeを含む保存文字列と集計値の同値性を確認し、原文backing storageの保持と性能の関係は測定で確認します。実装呼出しを写すだけのtestや、初回から通る回帰testをRed証拠にしません。
+4. `src/io/collector-worker.ts`へ同期read-only adapter、共有停止flag、計数だけのmetricsを実装します。mainでは同期filesystem syscallを呼ばず、workerの全readにも既存guardを使います。最大1MiBの有効file、入力保存値、返信停止中のabort、error／exit、遅延返信、停止後の再生成禁止、idle stopを検証します。nursery以外へ追加の容量制限を設けません。
+5. CLIのsnapshotをfinally stop、Node TUIを同じcollector＋任意dispose hookへ接続します。dispose失敗でも復元を続け、q／ETX／SIGINT／SIGTERMと130／143優先、注入I/O経路、worker未完了でも始まる復元をfocused Red→Greenで確認します。
+6. 全checkを通し、最新buildを再pack・offline installしてCLI／PTYを再検証します。同じ製品worker経路で、起動を含む60秒の全process CPU／peak RSS／採取p95を再測定します。事前hash／tree準備は別process、終了後の不変確認は測定値固定後です。超過が残ればpassにせず原因へ戻ります。実端末確認、A01〜A49の最終表、コードレビュー、文書・artifactの同期は続けて実施します。
+
+追加の原因比較で必要となる等価整理は、guardの事前組立て、reader／sessions／leasesでの同期値とPromise-likeの正しい受理、全件幅を維持した可視行のformatです。既存の公開結果、非同期・同期I/O、別realm／thenable、abort／変更／close失敗を回帰検証します。意味を変えない整理に人工的なRedを作らず、新しい振る舞いのassertion Red→Greenと区別します。採用ごとの比較と正式測定を別ログへ残し、予算・file検査・停止保証を緩めません。
 
 ```bash
 npm ci

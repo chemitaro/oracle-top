@@ -1,4 +1,8 @@
-import { collectInputs, type CollectorFileSystem } from "./io/sessions.js";
+import {
+  createInputCollector,
+  type InputCollectorOptions,
+} from "./io/collector.js";
+import { type CollectorFileSystem } from "./io/sessions.js";
 import { buildDashboard } from "./aggregate.js";
 import type { MonitorStartup } from "./config.js";
 import { renderText } from "./render/text.js";
@@ -31,6 +35,7 @@ export interface TuiDependencies {
   timer: TuiTimer;
   collect(signal: AbortSignal): Promise<TuiCollectResult>;
   onLateExitCode?(code: number): void;
+  dispose?(): void;
 }
 const enter = "\u001b[?1049h\u001b[?25l";
 const clear = "\u001b[H\u001b[2J";
@@ -199,6 +204,11 @@ export function runTui(
       cancelPoll?.();
       cancelResize?.();
       abort.abort();
+      try {
+        deps.dispose?.();
+      } catch {
+        if (exitCode !== 130 && exitCode !== 143) exitCode = 1;
+      }
       wait?.cancel();
       input.off("data", onData);
       input.off("error", onInputError);
@@ -333,19 +343,18 @@ export interface NodeTuiOptions {
   terminal?: TuiTerminal;
   io?: CollectorFileSystem;
   now?: () => number;
+  workerFactory?: InputCollectorOptions["workerFactory"];
   onLateExitCode?: (code: number) => void;
 }
 export function createNodeTuiDependencies(
   startup: MonitorStartup,
   options: NodeTuiOptions = {},
 ): TuiDependencies {
-  const frozen = {
-    ...startup,
-    env: { ...startup.env },
-    ...(startup.intervalArguments
-      ? { intervalArguments: [...startup.intervalArguments] }
-      : {}),
-  };
+  const collector = createInputCollector(startup, {
+    ...(options.io ? { io: options.io } : {}),
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.workerFactory ? { workerFactory: options.workerFactory } : {}),
+  });
   return {
     terminal: options.terminal ?? {
       input: process.stdin,
@@ -360,11 +369,7 @@ export function createNodeTuiDependencies(
       },
     },
     collect: async (signal) => {
-      const result = await collectInputs(frozen, {
-        signal,
-        ...(options.io ? { io: options.io } : {}),
-        ...(options.now ? { now: options.now } : {}),
-      });
+      const result = await collector.collect(signal);
       return result.kind === "inputs"
         ? {
             kind: "snapshot",
@@ -372,6 +377,7 @@ export function createNodeTuiDependencies(
           }
         : result;
     },
+    dispose: () => collector.stop(),
     ...(options.onLateExitCode
       ? { onLateExitCode: options.onLateExitCode }
       : {}),

@@ -1,8 +1,8 @@
 # oracle-top
 
-OracleのChatGPTブラウザ実行の保存状態を表示する、読み取り専用CLIダッシュボードを開発しています。
+OracleのChatGPTブラウザ実行の保存状態を表示する、読み取り専用CLIダッシュボードです。
 
-正式な要件・設計・実装計画が揃い、実装開始判定はready=trueです。同じChatGPT会話でStrict相談と完全SHA検証を完了し、回答をローカルOracle根拠へ照合しました。P02〜P09の基盤・読み取り・設定・投影・集計・表示・単発CLI・TUIを実装し、全222テスト、型検査、ビルドが通りました。配布・実端末・性能を含む製品全体の動作検証は未完了です。
+正式仕様に従い、GPT 6.1 Sol / HighでTDD実装しました。全257テスト・13suite、型検査、ビルド、隔離導入CLIの6ケース、自動PTYの9ケース、読み取り専用検査が通っています。1,000件×16KiBを2秒間隔で60秒採取した性能は、1コア換算平均CPU 4.57%、peak RSS 111.47MiB、採取p95 117.16msで予算内です。実macOS端末での目視・shell入力確認は未検証で、製品受け入れ全体は未完了です。証拠と残項目は[実装報告](docs/spec/implementation-report.md)に記録します。
 
 ## 目的
 
@@ -31,6 +31,18 @@ node dist/cli.js snapshot --json
 
 `--help`／`-h`、`--version`／`-V`も使用できます。上記以外の引数や組合せは受け付けません。
 
+## 配布パッケージからの導入
+
+Node.js 24で、用意したtarballを導入できます。依存の取得は導入時だけで、ツールの実行はオフラインです。
+
+```bash
+npm install --global ./artifacts/oracle-top-0.1.0.tgz
+oracle-top
+oracle-top snapshot --json
+```
+
+配布物にはESMの実行ファイル・型宣言・README・package.jsonだけを含めます。Oracle本体や個人の保存記録は含めません。npm registryへのpublishは行っていません。
+
 ## 読み取り先
 
 | 環境変数 | 用途・既定値 |
@@ -53,7 +65,24 @@ homeを変更してもprofileの既定値は移動しません。環境変数と
 
 通常終了と有効な警告付きsnapshotはexit 0、引数・TTY条件の不正は2、内部・出力・復元の失敗は1です。Ctrl-C／SIGINTは130、SIGTERMは143、stdoutのEPIPEは0です。
 
-## 計画
+## 検証
+
+```bash
+npm run check
+```
+
+配布検証のoffline installには専用cacheを先に用意します。次の依存取得は開発時の準備で、製品の通信ではありません。
+
+```bash
+npm install --prefix .workbench/p10/cache-prepare --cache .workbench/p10/cache --ignore-scripts --no-audit --no-fund --save-exact json5@2.2.3 string-width@8.3.0
+npm run smoke:cli
+npm run smoke:tty
+npm run perf
+```
+
+`smoke:cli`はtarballを隔離prefixへ導入し、合成home/profileで実行します。`smoke:tty`はその導入結果を使用します。`perf`は1,000件の合成fixtureを生成し、60秒測定します。すべての開発ログ・fixture・receiptはGit管理外の`.workbench/p10`へ保存します。自動PTYとは別に、実端末で画面・終了後の入力を確認する必要があります。
+
+## 仕様と実装記録
 
 [要件定義書](docs/spec/requirements.md)、[設計書](docs/spec/design.md)、[実装計画書](docs/spec/implementation-plan.md)、[受け入れ検証表](docs/spec/acceptance.md)を用意しました。正式版です。実装担当はGPT 6.1 Sol / Highです。工程ごとの検証結果とコミットは[実装報告](docs/spec/implementation-report.md)に記録します。
 
@@ -67,4 +96,4 @@ python3 scripts/check-planning.py
 python3 scripts/package-planning.py
 ```
 
-ZIPはartifacts/oracle-top-planning.zipです。現在のZIPは準備完了時点の資料です。計画のready=trueは製品の実装完了や動作検証を示すものではありません。
+ZIPは[artifacts/oracle-top-planning.zip](artifacts/oracle-top-planning.zip)です。正式仕様、日本語の説明HTML、実装報告をまとめます。計画のready=trueは製品の実装完了や動作検証を示すものではありません。

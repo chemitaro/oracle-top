@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "format:check": "prettier --check \"**/*.{ts,json,yml,yaml}\"",
-    "check": "npm run format:check && npm run typecheck && npm run build && npm test"
+    "check": "npm run format:check && npm run typecheck && npm run build && npm test",
+    "perf": "node scripts/performance.mjs --measure .workbench/p10/perf-fixture .workbench/p10/perf-result.json",
+    "smoke:cli": "npm run build && node scripts/smoke-cli.mjs",
+    "smoke:tty": "python3 scripts/smoke-tty.py"
   },
   "dependencies": {
     "json5": "2.2.3",

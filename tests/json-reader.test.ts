@@ -16,6 +16,8 @@ import {
   type ReadOnlyHandle,
 } from "../src/io/json-reader.js";
 
+import { BoundedReadBuffer } from "../src/io/read-buffer.js";
+
 let root: string;
 
 beforeEach(async () => {
@@ -588,5 +590,224 @@ test("isolates-close-failure", async () => {
       source: "session",
       sessionId: "sample",
     },
+  });
+});
+
+test("reads-small-document-with-proportional-buffer-and-extra-byte", async () => {
+  await writeFile(join(root, "sessions/sample/meta.json"), "{}");
+  let maximumBuffer = 0;
+  const result = await read("json", {
+    io: {
+      ...nodeReadOnlyFileSystem,
+      async open(path, flags) {
+        const handle = await nodeReadOnlyFileSystem.open(path, flags);
+        return {
+          ...handle,
+          async read(buffer, offset, length, position) {
+            maximumBuffer = Math.max(maximumBuffer, buffer.byteLength);
+            return handle.read(buffer, offset, Math.min(length, 1), position);
+          },
+        };
+      },
+    },
+  });
+  expect({ result, maximumBuffer }).toEqual({
+    result: { kind: "value", value: {} },
+    maximumBuffer: 3,
+  });
+});
+
+test("finishes-known-size-short-read-without-redundant-eof-probe", async () => {
+  await writeFile(join(root, "sessions/sample/meta.json"), "{}");
+  let calls = 0;
+  const result = await read("json", {
+    io: {
+      ...nodeReadOnlyFileSystem,
+      async open(path, flags) {
+        const handle = await nodeReadOnlyFileSystem.open(path, flags);
+        return {
+          ...handle,
+          async read(...args) {
+            calls++;
+            return handle.read(...args);
+          },
+        };
+      },
+    },
+  });
+  expect({ result, calls }).toEqual({
+    result: { kind: "value", value: {} },
+    calls: 1,
+  });
+});
+
+test("returns-loaned-buffer-zeroed-after-parsing", async () => {
+  const pool = new BoundedReadBuffer();
+  let loan: Uint8Array | undefined;
+  await writeFile(
+    join(root, "sessions/sample/meta.json"),
+    '{"saved":"日本語"}',
+  );
+  const result = await read("json", {
+    io: {
+      ...nodeReadOnlyFileSystem,
+      bufferPool: pool,
+      async open(path, flags) {
+        const handle = await nodeReadOnlyFileSystem.open(path, flags);
+        return {
+          ...handle,
+          read(buffer, offset, length, position) {
+            loan = buffer;
+            return handle.read(buffer, offset, length, position);
+          },
+        };
+      },
+    },
+  });
+  expect({ result, zeroed: loan?.every((byte) => byte === 0) }).toEqual({
+    result: { kind: "value", value: { saved: "日本語" } },
+    zeroed: true,
+  });
+});
+
+test("reuses-one-buffer-between-documents-without-keeping-contents", async () => {
+  const pool = new BoundedReadBuffer();
+  const backing: ArrayBufferLike[] = [];
+  await writeFile(join(root, "sessions/sample/meta.json"), "{}");
+  const io = {
+    ...nodeReadOnlyFileSystem,
+    bufferPool: pool,
+    async open(path: string, flags: number) {
+      const handle = await nodeReadOnlyFileSystem.open(path, flags);
+      return {
+        ...handle,
+        read(
+          buffer: Uint8Array,
+          offset: number,
+          length: number,
+          position: number,
+        ) {
+          backing.push(buffer.buffer);
+          return handle.read(buffer, offset, length, position);
+        },
+      };
+    },
+  };
+  const first = await read("json", { io }),
+    second = await read("json", { io });
+  expect({
+    first,
+    second,
+    same: backing[0] === backing[1],
+    allocated: pool.allocatedBytes,
+  }).toEqual({
+    first: { kind: "value", value: {} },
+    second: { kind: "value", value: {} },
+    same: true,
+    allocated: 3,
+  });
+});
+
+test("grows-loan-with-preserved-bytes-and-zeroes-retired-storage", () => {
+  const pool = new BoundedReadBuffer();
+  const first = pool.borrow(3);
+  first.set([1, 2, 3]);
+  const expanded = pool.grow(first, 6);
+  expect({
+    first: [...first],
+    expanded: [...expanded],
+    allocated: pool.allocatedBytes,
+  }).toEqual({ first: [0, 0, 0], expanded: [1, 2, 3, 0, 0, 0], allocated: 9 });
+  pool.release();
+  expect([...expanded]).toEqual([0, 0, 0, 0, 0, 0]);
+});
+
+test("rejects-buffer-capacity-outside-file-boundary", () => {
+  const pool = new BoundedReadBuffer();
+  expect(() => pool.borrow(1048578)).toThrow(RangeError);
+});
+
+test("prevents-overlapping-buffer-loans", () => {
+  const pool = new BoundedReadBuffer();
+  pool.borrow(3);
+  expect(() => pool.borrow(2)).toThrow(Error);
+  pool.release();
+  expect(pool.borrow(2).length).toBe(2);
+  pool.release();
+});
+
+test("abort-during-post-stat-starts-no-new-probe", async () => {
+  await writeFile(join(root, "sessions/sample/meta.json"), "{}");
+  const controller = new AbortController();
+  let postAbortProbes = 0;
+  const io = {
+    ...nodeReadOnlyFileSystem,
+    async lstat(path: string) {
+      if (controller.signal.aborted) postAbortProbes++;
+      return nodeReadOnlyFileSystem.lstat(path);
+    },
+    async open(path: string, flags: number) {
+      const handle = await nodeReadOnlyFileSystem.open(path, flags);
+      let stats = 0;
+      return {
+        ...handle,
+        async stat() {
+          const stat = await handle.stat();
+          if (++stats === 2) controller.abort();
+          return stat;
+        },
+      };
+    },
+  };
+  const result = await read("json", { io, signal: controller.signal });
+  expect({ result, postAbortProbes }).toEqual({
+    result: { kind: "aborted" },
+    postAbortProbes: 0,
+  });
+});
+
+test("accepts-cross-realm-promises-and-legal-thenables", async () => {
+  const { runInNewContext } = await import("node:vm");
+  await writeFile(join(root, "sessions/sample/meta.json"), "{}");
+  const crossRealm = {
+    ...nodeReadOnlyFileSystem,
+    realpath(_path: string) {
+      return runInNewContext("Promise.resolve(path)", { path: root });
+    },
+  };
+  await expect(read("json", { io: crossRealm })).resolves.toEqual({
+    kind: "value",
+    value: {},
+  });
+  const thenable = {
+    ...nodeReadOnlyFileSystem,
+    realpath(_path: string): PromiseLike<string> {
+      return {
+        then(yes, no) {
+          return Promise.resolve(root).then(yes, no);
+        },
+      };
+    },
+  };
+  await expect(read("json", { io: thenable })).resolves.toEqual({
+    kind: "value",
+    value: {},
+  });
+});
+test("zeroes-pool-after-parse-failure-and-reads-next-file", async () => {
+  const pool = new BoundedReadBuffer();
+  const io = { ...nodeReadOnlyFileSystem, bufferPool: pool };
+  await writeFile(join(root, "sessions/sample/meta.json"), "bad");
+  await expect(read("json", { io })).resolves.toMatchObject({
+    kind: "warning",
+    warning: { code: "INVALID_JSON" },
+  });
+  const loan = pool.borrow(4);
+  expect([...loan]).toEqual([0, 0, 0, 0]);
+  pool.release();
+  await writeFile(join(root, "sessions/sample/meta.json"), "{}");
+  await expect(read("json", { io })).resolves.toEqual({
+    kind: "value",
+    value: {},
   });
 });

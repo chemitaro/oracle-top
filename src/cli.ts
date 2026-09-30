@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+import {
+  createInputCollector,
+  type InputCollectorOptions,
+} from "./io/collector.js";
 import { createNodeTuiDependencies, runTui, type TuiInput } from "./tui.js";
 import { parseInterval } from "./config.js";
 import { homedir } from "node:os";
 import type { Writable } from "node:stream";
 import type { MonitorStartup } from "./config.js";
 import type { CollectorFileSystem } from "./io/sessions.js";
-import { collectInputs } from "./io/sessions.js";
 import { buildDashboard } from "./aggregate.js";
 import { serializeJson } from "./render/json.js";
 import { renderText } from "./render/text.js";
@@ -16,6 +19,7 @@ export interface CliDependencies {
   stderr?: Writable;
   io?: CollectorFileSystem;
   now?: () => number;
+  workerFactory?: InputCollectorOptions["workerFactory"];
   onLateExitCode?: (code: number) => void;
   runTui?: (startup: MonitorStartup, intervalMs: number) => Promise<number>;
 }
@@ -103,23 +107,29 @@ export async function main(
       );
     }
     if (snapshot) {
-      const result = await collectInputs(frozenStartup, {
+      const collector = createInputCollector(frozenStartup, {
         ...(deps.io ? { io: deps.io } : {}),
         ...(deps.now ? { now: deps.now } : {}),
+        ...(deps.workerFactory ? { workerFactory: deps.workerFactory } : {}),
       });
-      if (result.kind === "usage-error") {
-        output = stderr;
-        await writeOutput(stderr, usage);
-        return 2;
+      try {
+        const result = await collector.collect(new AbortController().signal);
+        if (result.kind === "usage-error") {
+          output = stderr;
+          await writeOutput(stderr, usage);
+          return 2;
+        }
+        if (result.kind === "aborted") throw new Error("Collection aborted");
+        output = stdout;
+        await writeOutput(
+          stdout,
+          (argv.includes("--json") ? serializeJson : renderText)(
+            buildDashboard(result.inputs, result.nowMs),
+          ) + "\n",
+        );
+      } finally {
+        collector.stop();
       }
-      if (result.kind === "aborted") throw new Error("Collection aborted");
-      output = stdout;
-      await writeOutput(
-        stdout,
-        (argv.includes("--json") ? serializeJson : renderText)(
-          buildDashboard(result.inputs, result.nowMs),
-        ) + "\n",
-      );
     }
     return 0;
   } catch (error: unknown) {

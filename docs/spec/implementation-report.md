@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P08はcheckpoint済み、P09の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P10は未実施で、製品実装は未完了です。
+状態: P02〜P09はcheckpoint済み。P10の実装・自動検証が成功し、primaryも全257テスト・最新installed CLI／PTY・性能とのコード一致・文書を照合しました。native画面／shell入力とコードレビューは未完了で、製品受け入れ全体は未完了です。
 
 ## 実装環境と基準
 
@@ -582,7 +582,223 @@ CLI scenarioとbuilt entry試験は専用childのHOME／home／profileを合成f
 
 primaryは製品・testの全差分を読み、元cycles.logとexits.txtから17件すべての対象1件AssertionError・Red1→Green0を独立照合しました。4 source/testのSHA256と元ログhashを`.workbench/p09/primary-cycles-proof.json`へ記録しました。`npm run check`を改めて実行し、exit0、全222件・10suiteとformat／typecheck／buildの成功を確認しました（primary-check.log）。READMEへ起動・設定・数字の意味を追加し、説明HTMLを同じ検証範囲へ同期しました。HTMLの既定validatorはexit0で、1図のSVG描画と拡大・keyboard・focus復元が成功しました。これらを導入済みCLI・実端末・正式性能の検証証拠には使いません。
 
-P09のcheckpointはprimaryのstaged差分確認・commit待ちです。この担当はGit書込み、外部分析、追加agentを実行していません。P10の導入済みtarball、built CLIの実PTY／native TTY、正式60秒CPU／RSS／p95、安全性全受け入れは未検証です。Node実adapter接続の合成child検証を実端末の画面・復元確認とは扱いません。製品受け入れ全体は未完了です。
+P09 checkpoint SHAは`33b6b38330206f626196ae95cd17e11a4b041025`です（primaryの完全差分・元17pair・独立222件check・HTML確認後にcommit済み）。この担当はGit書込み、外部分析、追加agentを実行していません。P10の導入済みtarball、built CLIの実PTY／native TTY、正式60秒CPU／RSS／p95、安全性全受け入れは未検証です。Node実adapter接続の合成child検証を実端末の画面・復元確認とは扱いません。製品受け入れ全体は未完了です。
+
+## P10 — 配布・PTY・read-only・性能（局所実装・自動検証完了）
+
+開始時は`main`／`33b6b38330206f626196ae95cd17e11a4b041025`／clean、origin/main比ahead8を確認しました。GPT 6.1 Sol / High、`tdd`と`use-workbench`を継続しています。primary所有のREADME／HTML／canonical文書／work-plan／.gitignoreを保持し、stage／commit／push、外部分析、追加agent、nativeアプリ操作を実施していません。
+
+開発用`fixture.mjs`は合成metadataのみを作り、子processのHOME／ORACLE_HOME_DIR／ORACLE_BROWSER_PROFILE_DIRをこのfixtureへ固定します。親のprocess-wide envは変更しません。個別test fixtureを後始末し、installed bin・native確認用fixture・receipt・元ログは`.workbench/p10`へ保持します。開発fixture生成／npm pack／導入の書込みは製品read-only検査と分離しました。
+
+### TDD証拠
+
+元selection／stdout・stderrは`.workbench/p10/cycles.log`、exitは`exits.txt`です。選択commandは`npm test -- tests/<suite>.test.ts -t '^<name>$'`（一部は`--reporter=verbose`付き）です。次の27件は対象各1件のassertion Red exit1→同名Green exit0です。compile／import／harness失敗を含めません。
+
+| suite | assertion Red→Green |
+|---|---|
+| performance | creates-thousand-bounded-synthetic-metadata-files |
+| performance | evaluates-fixed-performance-budgets-with-one-core-cpu |
+| performance | dates-development-fixture-relative-to-explicit-clock |
+| integration | rejects-pack-contents-outside-public-allowlist |
+| integration | real-worker-preserves-one-mib-unicode-document-and-poll-config |
+| integration | reports-only-bounded-read-metrics-through-real-worker |
+| json-reader | reads-small-document-with-proportional-buffer-and-extra-byte |
+| json-reader | finishes-known-size-short-read-without-redundant-eof-probe |
+| json-reader | returns-loaned-buffer-zeroed-after-parsing |
+| json-reader | reuses-one-buffer-between-documents-without-keeping-contents |
+| json-reader | grows-loan-with-preserved-bytes-and-zeroes-retired-storage |
+| json-reader | rejects-buffer-capacity-outside-file-boundary |
+| json-reader | prevents-overlapping-buffer-loans |
+| json-reader | abort-during-post-stat-starts-no-new-probe |
+| collector-service | starts-worker-lazily-and-captures-clock-once |
+| collector-service | reuses-one-worker-and-fixed-startup-across-polls |
+| collector-service | stop-releases-blocked-poll-and-rejects-late-reply |
+| collector-service | rejects-overlapping-polls-without-extra-request |
+| collector-service | isolates-worker-error-and-does-not-restart |
+| collector-service | isolates-unexpected-worker-exit-before-stop |
+| collector-service | preserves-injected-io-path-without-worker |
+| collector-service | node-tui-connects-collector-and-disposes-idle-worker |
+| collector-service | isolates-metrics-observer-failure-as-internal-error |
+| collector-service | abort-during-clock-capture-starts-no-worker-or-read |
+| tui | disposes-after-abort-without-waiting-for-collection |
+| tui | continues-restoration-after-dispose-failure |
+| cli | snapshot-stops-worker-in-finally-after-usage-result |
+
+次の8件は初回pass回帰です。既存cloneの保存値はnormalize／collectorsの公開結果を用いた回帰と、実Workerの1MiB／Unicode保存値の公開結果で照合し、メモリ改善だけに人工的なRedを作っていません。
+
+```text
+integration: reads-complete-snapshot-without-changing-fixture-or-opening-unrelated-files
+integration: production-imports-and-capabilities-exclude-forbidden-effects
+performance: rejects-each-budget-overrun-without-relaxing-limits
+tui: preserves-signal-priority-when-dispose-fails
+collector-service: aborts-blocked-worker-and-removes-only-owned-listeners
+collector-service: stop-before-first-poll-does-not-create-worker
+json-reader: accepts-cross-realm-promises-and-legal-thenables
+json-reader: zeroes-pool-after-parse-failure-and-reads-next-file
+```
+
+開発fixtureは任意nowMsを受け、controlled literalの2030年基準で2分前／1分前を確認しました。perf／coreはFIXED_NOW、installed CLI／native用fixtureはDate.now起点です。製品clock用の隠しenvは追加していません。旧固定日付fixtureのsmoke成功はその実行時点の回帰として残します。
+
+### 配布・PTY・安全性
+
+`smoke:cli`は最新buildをpackし、専用準備済みcacheから`--offline --ignore-scripts --omit=dev`で別prefixへ導入、そのnpm binを直接実行します。runtime直接依存json5／string-widthの2つ、Node24 ESM、pack allowlist（dist・README・package.json）を検査します。help0／version0／非TTY2（stdout空）／JSON0／text0／closed pipe EPIPE0の6ケースが成功しました。JSON全20current／40submitted・2warning、text全行・全警告・長いslug・ANSIなし、読取前後tree／SHA256／mtimeNs／mode不変を確認しました。導入元tarballとsource／dist hash、bin／fixture pathは`installed-receipt.json`へ保持します。production再修正後は最新buildで再pack・再導入し、旧receiptを新製品の証拠へ流用しません。
+
+`smoke:tty`はPython標準PTYでinstalled binを起動し、120×32／80×24／幅不足／高さ不足／連続resize、q0／ETX130／SIGINT130／SIGTERM143、開発adapter注入例外1の9ケースを検査しました。cursor表示・SGR reset・alternate leave、raw制御／その他永続termios flagsの復元が成功しています。macOSがcanonical復帰時に付ける一時PENDINだけを比較から除外します。controllerがTTYを保持したまま終了直後flagsを検査し、専用ack pipeでcontrollerを終了させます。これはnative画面・折返し／scroll／shell入力の合格証拠ではありません。
+
+read-onlyは製品禁止import／APIのstatic検査、O_RDONLY／O_NOFOLLOW／O_NONBLOCK能力境界、合成fixtureのtree／内容hash／mtimeNs／mode前後一致、logと他profileのopen0を組み合わせました。atimeは比較から除外します。実Oracle metadata、秘密値、full conversationを使用していません。
+
+### 正式性能と原因計測
+
+Node24.14.0／npm11.18.0／macOS27.0.1 arm64／Mac16,10・10core・32GiB／ローカルAPFS PCI-Express SSDです。primaryの環境証拠は`environment.md`です。各正式runは1000件×16384bytes、2000ms・60000ms、採取→限定投影→集計→120×32描画を含みます。fixture生成は別processで測定前に行い、npm処理も測定外です。process.cpuUsage user＋system／wallで1コア平均CPU、process.resourceUsage maxRSS、scan時間p95、initial、scan/read peak、input hashとsource identityを保存します。
+
+| 正式run | CPU | peak RSS | p95 | scan数 | scan/read peak | fixture不変 | exit |
+|---|---:|---:|---:|---:|---|---|---:|
+| before（perf-before.json） | 17.1429% | 97.1094MiB | 295.3166ms | 30 | 1 / 1 | true | 1 |
+| proportional buffer（perf-buffer.json） | 12.4051% | 139.3281MiB | 257.0420ms | 30 | 1 / 1 | true | 1 |
+
+CPU<=5%だけが超過しており、合格と記録しません。adapterでdistinct buffer容量を計測し、30scanの確保量31,520,224,620→491,550,870bytesを確認しました。readerはstat.size+1の初期bufferとfull時bounded拡張へ変更しました。追加byte／1MiB+1検出・短いread・identity／size／mtime／ctime再検査・abort・finally closeを保持し、focused assertion Red→Greenとreader全30件passを確認しました。通常16KiBのfileでは拡張copyは発生しません。
+
+private原因比較`io-cause*.json`ではguardを減らさず、callback API Promise wrapperもCPU改善が不足でした。main-thread同期syscallのscratch比較は行いましたが、OS read待機中のq／signal復元保証を保てないためproductionへ採用していません。これはWorker採用前の原因比較履歴です。後段の正式内部契約固定後にWorkerを製品へ実装しました。短い比較やpreflightを正式性能passへ転記しません。
+
+### Worker候補のscratch比較（製品採用前）
+
+main-thread同期I/Oは不採用とし、採取全体をWorker1本へ隔離する内部候補をprimaryと検討しました。1pollを1request/responseとし、mainで捕捉したnow、固定startup、SharedArrayBuffer停止flagを渡します。worker内部だけのread-only sync syscallの前後で停止flagを確認し、既存coreのabort／finally closeを維持します。raw文書はIPCへ渡しません。
+
+| scratch候補 | CPU | peak RSS | p95 | exit | 判定 |
+|---|---:|---:|---:|---:|---|
+| 元Worker（worker-result.json） | 5.9874% | 204.5156MiB | 131.9142ms | 1 | CPU／RSS超過 |
+| normalized clone＋zero化pool、準備別process（worker-lean-both-result.json） | 4.7638% | 197.3906MiB | 108.1253ms | 1 | RSS超過 |
+| 上記＋young領域4MB（worker-young-result.json） | 4.8494% | 136.2813MiB | 95.8802ms | 0 | ambient env未固定の比較証拠のみ |
+| plain Awaitable＋合成ambient env（worker-plain-result.json） | 5.2084% | 127.5938MiB | 117.7496ms | 1 | CPU超過 |
+| 上記＋early-read（worker-early-result.json） | 4.9382% | 129.2344MiB | 118.3901ms | 0 | 候補の同時合格、製品は未採用 |
+
+各runは変更ごとに別job・別結果へ保存し、同じ候補を合格するまで繰り返していません。全process／全threadのCPU、Worker startupを初回と全体へ含め、old／stack／valid入力の追加容量上限や強制GCを使っていません。すべて30scan・peak scan/read1・input不変です。後半2runはWorker ambient envもHOME＋正規ORACLE3設定で合成fixtureへ固定しました。前半はstartupの明示fixtureによる実読取限定だけだったため境界不足と区別します。実Oracleの読取・データ保存はありません。
+
+投影済みNormalizedSessionのstructuredCloneは保存値を変えず、元JSON文字列のbacking参照を切る候補です。worker限定のbuffer poolはdecode／parse完了後にゼロ化し、貸出1本・成長MAX+1・返却finallyを守る候補で、metadata cacheとは区別します。heap／external／ArrayBufferをprivate比較で確認しました。young領域4MBは一時object nurseryだけの設定です。
+
+early-readは、最初のfstat.sizeへtotalがちょうど到達し、最後のbytesReadがrequested未満の場合だけ後段の全file／parent identity・size／mtime／ctime検査へ進みます。size未達のshort readは継続し、growでbufferが満たされればMAX+1まで検出します。scratchのsize0・1byte chunk・Unicode・growMAX+1・post-read変更5項目はexit0でした（early-checks.log）。候補の成功を製品合格へ流用しません。primaryが内部契約とP10順序を正式仕様へ固定し、次の製品実装・再測定へ進みました。
+
+### 専用Workerの製品実装と再測定
+
+`createInputCollector`は必要設定を固定コピーし、mainでnowを1回捕捉してから、遅延起動するWorker1本へ採取全体のrequestを送ります。1件だけの待機を持ち、poll間で再利用、同時要求を安全な内部失敗へ閉じます。worker ambient envはHOMEと正規ORACLE3項目だけ、execArgvは空です。注入I/O経路は既存の非同期coreを保ち、内部Awaitable型で同期値をPromiseと偽装しません。
+
+Worker内だけのread-only sync adapterへ既存guardを適用し、各I/Oの前後で共有停止flagを確認します。finally close、descriptor追跡、borrow／decode・parse／finally release、成長旧領域と返却使用領域zero化、MAX+1上限を維持します。NormalizedSessionだけstructuredCloneし、raw文書・promptをIPC／cache／historyへ保存しません。nursery4MiB以外へold／stack／入力容量上限を追加しません。
+
+stopは冪等・同期で、待機callerをabortedで解放し、unref・terminateを要求します。idleも停止対象、終了前のerror／exitは内部失敗、停止後の返信・障害は破棄、停止後に再生成しません。自分のlistenerだけを解除し、terminate決着まで有界error guardianを残せます。OS syscallの即時中断は主張しません。CLI snapshotはfinally stop、Node TUIは同じcollectorとdisposeを使い、Abort後dispose失敗でも端末復元を続け、130／143を保持します。
+
+有限なmetrics3項目だけを任意observerへ渡します。実Worker2pollでreadPeak1／各readCalls3／初回確保あり・次回0を確認しました。未注入時に追加ログ・通知を作りません。1MiB有効JSON、日本語・結合文字・ZWJ emoji・未知effortの保存値、config再読込、停止・遅延返信・listener所有境界を公開結果で確認しました。reader全36件、limited cloneのnormalize／collectors回帰、接続後の全252件checkはいずれもexit0です（後続focused追加を含む最終件数は完了検証へ記録します）。
+
+製品の初回正式60秒は`perf-product.json`／logへ保持し、CPU5.9186%でexit1でした。RSS136.7969MiB、p95120.1886ms、30scan、scan/read peak1、buffer実確保16388bytes／read30060回、fixture不変です。fixture生成と事前hashは別process、終了後inventoryはCPU／RSS固定後に行いました。source／dist identityはpath＋content SHAだけです。
+
+差分原因の8scan比較では、syscallごとの短命operation closureをadapter作成時に一度だけ作るguard wrapperへ置き換え、CPU689870→668804µs（約3.1%減）でした（guard-cause.json／log）。全IO前後の停止flag・abort判定・例外伝播・closeを変えない等価整理をprimaryが承認し、4suite80件の回帰をexit0で確認しました。無変更の合格狙い再実行ではありません。変更後の正式60秒もCPU5.7168%でexit1でした（perf-product-guard.json／log）。RSS136.6875MiB、p95152.7255msです。旧失敗を保持して次の原因比較へ進みました。
+
+decoder再利用とNormalizedSession配列単位cloneは、8scan CPUのcurrent668451µsに対し672772／726520µsで改善せず、不採用です。保存値の変更やraw文書cloneへは進んでいません。同期IO結果にもawaitしていたmicrotaskを省く比較は688687→663799µs（約3.6%減）。primary承認の等価整理としてreader／sessions／leasesへconditional awaitを適用し、内部AwaitableをT|PromiseLike<T>としてnative／cross-realm／合法thenableを正しく受理します。即時throw／遅延reject・変更検査・abort／close／pool返却の既存回帰を維持しました。reader post-fstat中abortで後続probeが始まる抜けも公開assertion Red→Greenで修復しました。
+
+TUIの可視行だけtableLineを作る比較は、同一snapshot／viewportの出力一致を先に確認し、40描画CPU214868→78230µs（約63.6%減）でした。全件の保護列width計算・全snapshot出力・省略件数は維持し、永続cacheを追加していません。reports-omitted-rows-per-sectionと全renderer回帰を成功しました。
+
+同じ最新製品Worker経路・metrics注入の正式60秒は`perf-product-conditional-visible.json`／logへ保存し、exit0です。CPU4.56811955%（user1153542＋system1587420µs／wall60001.976084ms）、peak RSS111.46875MiB、p95117.161208ms、initial117.161208ms、30scan、scan/read peak1、read30060回、buffer実新規確保16388bytesでした。1000件×16384bytes、2秒周期、入力tree不変です。Worker起動を初回と全体へ含め、全thread CPU／process全体RSSを使い、強制GC・old／stack／入力容量制限を加えていません。young4を維持し、8比較は不要となり未実施です。
+
+sourceSHAは`eb72f81253886d7af827fef59f3314b4ecfd5bcb516c6ade34ddd2348da12e8a`、distSHAは`7cd1adf9991a20ce9508fd1c905054bd7aae673927a9146f4e15d4d5e186ee05`です。いずれもpath＋content SHAの集合から算出し、READMEやmtime変更を製品identityへ混ぜません。入力tree hashは`54ad10d428e7a558f34eda3287c7681e0433f89c31693295b032c45c9a7a4f77`。最新offline導入receiptともsource／dist両SHAが一致し、旧packの結果を流用していません。
+
+### 局所最終検証
+
+| command | exit | 結果・元ログ（.workbench/p10/） |
+|---|---:|---|
+| `npm run build` | 0 | conditional-render-build.log、最新smoke内でもbuild0 |
+| `npm test -- tests/integration.test.ts tests/performance.test.ts --reporter=verbose` | 0 | 2suite9件、final-p10-suite.log |
+| `npm test -- tests/render.test.ts -t '^reports-omitted-rows-per-section$' --reporter=verbose` | 0 | 対象1件、final-render-target.log |
+| `npm test -- tests/cli.test.ts -t '^emits-one-json-document$' --reporter=verbose` | 0 | 対象1件、final-cli-target.log |
+| `npm run typecheck` | 0 | final-typecheck.log |
+| `npm run check` | 0 | format／typecheck／build／13suite257件、final-check.log |
+| `npm run smoke:cli` | 0 | 最新pack→専用cacheのoffline導入→installed bin6ケース、final-smoke-cli.log |
+| `npm run smoke:tty` | 0 | installed bin9ケース、final-smoke-tty.log／tty-result.json |
+| `node scripts/performance.mjs --measure .workbench/p10/perf-fixture .workbench/p10/perf-product-conditional-visible.json` | 0 | package perfと同じ測定engine・正式60秒、perf-product-conditional-visible.log |
+| `git diff --check` | 0 | 空白エラーなし、final-diff-check.log |
+| `python3 scripts/check-planning.py` | 0 | 文書／readiness検査、final-planning.log |
+
+配布36fileはdist／README.md／package.jsonだけです。leafのSTOP時点のtarball SHA256は`a76d11298be428964cff8cb0b565d6e43a3a131f71752f740d762213b80f91e4`。installed bin、現在時計起点の合成home／profile、tarballはinstalled-receipt.jsonで指定するscratchへ保持しました。fixture／spec／workbench／実データをpackへ含めず、global install／publishは行っていません。27件assertion Redと選択command、source／dist／tarball hashと主要ログSHAをfinal-proof.jsonへ記録しました。原ログと失敗runは保存しています。
+
+### 手順・環境失敗の区別
+
+- 最初のfixture Redのexit記録はzsh予約変数`status`で失敗しました。元VitestのAssertionError／1failedはcycles.logに残り、exit1を後からexits.txtへ記録しました。
+- 最初のperf起動は相対cwdによるusage-errorで測定前終了exit1。rootを絶対化し、60秒正式runとは区別しました。
+- pack初回は既定npm cache権限でexit1。packにも専用cacheを指定しました。offline installは最新transitive tarballがcache不足でexit1となり、ネットワークを使う専用cache準備を開発処理として分離して修復しました。
+- CLI長slug失敗はfixtureがroot.slugへ置いた誤前提です。正本options.slugへ訂正し、製品バグ／Redから除外しました。一部CLI初期失敗の同名ログを上書きした記録手順不足があり、元command／exitはexits.txtとtool履歴に残ります。残る元ログは保持し、以後は試行別名で記録します。
+- PTY初回はsession leader終了後のslave tcgetattrがENOTTYとなるharness失敗。controller版はtty readline／cleanup waitでdeadlineを越えて停止したため、元session23236へCtrl-Cを送りexit130で中断しました。元traceを保持し、別jobの重複起動はしていません。nonblocking master・専用ack pipe・有界cleanupへ修復しました。PENDINのみの誤比較も製品Redから除外します。
+- Worker stubのbuildはoptional io narrowing不足でexit2、CLI seam追加buildはshebang前importでexit2、guard overloadの戻り型もexit2でした。各修復後build0を記録し、製品Redから除外します。Node TUI接続の最初の試行は早すぎるimport除去のReferenceErrorで除外、実行可能境界へ戻した後の公開期待値assertion Red→Greenだけを採用しました。
+- 最初のcheckは追加したperformance testの未整形でformat exit1。Prettier後の再検証を別ログへ保存します。typecheck初回はexit0です。
+
+native端末はprimaryのCUAでTerminal／Ghosttyがアプリ安全規則により拒否され、未検証を維持しています。この担当から別経路で操作していません。最終受け入れ表・納品artifact・文書全体・Gitはprimary所有です。このleafは2026-10-01 04:03 JST時点で局所実装・自動検証を完了してSTOPします。HEADはmain／33b6b38330206f626196ae95cd17e11a4b041025のままで、製品source／distの上記hashを固定します。native画面／shell入力、primaryの最終A01〜A49表・独立review／checkpoint・文書／artifact同期は残っています。
+
+## Primaryによる最終自動検証とA01〜A49の照合
+
+primaryはP10の製品差分、開発harnessとテストを読み、元cycles.logを独立に解析しました。対象各1件のAssertionError・Red1と後続の同名Green0が27組あり、ReferenceErrorの1試行を除外し、元ログhashがleafの記録と一致することを確認しました。証拠は`.workbench/p10/primary-cycles-proof.json`です。初回pass回帰をRedへ数えていません。
+
+| primary command | exit | 結果・ログ |
+|---|---:|---|
+| `npm run check` | 0 | format／typecheck／build／257件・13suite、primary-check.log |
+| `npm run smoke:cli` | 0 | 更新READMEを含む再pack・offline導入、installed bin6ケース、primary-smoke-cli.log |
+| `npm run smoke:tty` | 0 | 同じ新installed binの9ケース、primary-smoke-tty.log／tty-result.json |
+| `node /Users/iwasawayuuta/.agents/skills/japanese-explanatory-html/scripts/validate-plantuml-html.mjs docs/overview.html` | 0 | 1図のinline SVG、拡大・keyboard・focus復元、primary-html.log |
+| `python3 scripts/check-planning.py` | 0 | 32要件／10工程／8境界／49ケースの文書整合 |
+
+最新tarballは`928dd23cc5d6a07d5df40c15523f3c4192bf57097a31bf448f74058738686fcb`です。36fileのallowlistを通り、個人データを含みません。sourceSHA `eb72f81253886d7af827fef59f3314b4ecfd5bcb516c6ade34ddd2348da12e8a`、distSHA `7cd1adf9991a20ce9508fd1c905054bd7aae673927a9146f4e15d4d5e186ee05`は、primaryの再build・最新導入・正式性能の3者で一致しました（primary-identity.json）。README変更やmtimeだけの変更で同じ実行コードの性能を再測定せず、正式60秒の成功をこの一致から対応付けます。
+
+以下は名称だけでなく、各公開境界のliteral assertionと全257件の成功、導入CLI／PTYの実行証拠に照合した表です。`pass`は記載した境界の検証成功を示します。`一部／未検証`の4ケースは、実端末の目視・shell入力と、それを含む最終完了条件が残るためです。製品の未修正不具合4件という意味ではありません。R-ID／D-IDの対応はacceptance.mdを正本とします。
+
+| Case | 状態 | 検証境界・主要期待値／証拠 |
+|---|---|---|
+| A01 | pass | tui：初回即時、2,000msの開始grid、q=0。installed PTYでも起動・q復元 |
+| A02 | pass | cli：1採取、text全行・ANSIなし、JSON一文書。installed CLI20current／40送信・全2警告 |
+| A03 | pass | collectors／aggregate：8日前startedAtのrunningもcurrentへ残る |
+| A04 | pass | config：JSON5のcomment／trailing commaを受理し、許可2項目だけ投影。project探索なし |
+| A05 | pass | collectors：有効v1台帳2件はstale／duplicateでも2、欠損0、不正null |
+| A06 | pass | collectors：壊れたmetadataを隔離し、正常レコードと解析警告だけを保持 |
+| A07 | pass | integration／installed CLI：read-only能力・禁止API静的検査、tree／内容SHA／mtimeNs／mode不変 |
+| A08 | pass | normalize／aggregate／render：pending／runningだけ、保存statusと6列を保持 |
+| A09 | pass | aggregate：elapsed10s、20s、nullの順。同値はid UTF-16順 |
+| A10 | pass | aggregate：24completed＋2partial＋4error＋1cancelled→evaluated30／success0.8 |
+| A11 | pass | aggregate／render：分母0はnull／N/A、failureRate／errorRateなし |
+| A12 | pass | normalize／aggregate：true＋hash nullは1、文字列true／falseは0 |
+| A13 | pass | normalize／aggregate：completed＋初回true＋followUps2→3、error→1、false→0 |
+| A14 | pass | normalize／aggregate：不正follow-up配列は全体拒否、初回1だけ＋warning |
+| A15 | pass | aggregate：24H／7D下限とnowを含み、下限−1ms／now＋1msを指定窓から除外 |
+| A16 | pass | aggregate：同conversation IDの別directoryを各1件、7D0行を非表示 |
+| A17 | pass | aggregate：model／effort固定優先順、その他はraw UTF-16順、保存case保持 |
+| A18 | pass | render／installed text：Oracle-only、direct ChatGPT除外、requested値・代理値の注記 |
+| A19 | pass | aggregate／render：同profile current→env→config→3、4/3を保持しtext133.3% |
+| A20 | pass | render：5領域、successだけ、quota領域なし |
+| A21 | 一部／未検証 | renderの日本語・結合文字・emoji幅、project／slug優先短縮はpass。実端末の目視は未検証 |
+| A22 | pass | render／cli：表別省略件数。単発text／JSONは省略せず、installed CLIでも全件 |
+| A23 | pass | render：OSC／ESC／C0／C1／CRLF／TAB／Bidiを無害化、入力由来の単一セルを保持 |
+| A24 | pass | package／installed CLI：Node24 ESM bin、runtime直接依存2つ、公開36fileだけ |
+| A25 | pass | tui：scan5s／interval2sは次6s、同時scan1、drain中も重複採取なし |
+| A26 | pass | 正式製品60s：1000×16384bytes、CPU4.5681%、RSS111.4688MiB、p95117.1612ms、30scan、scan/read peak1 |
+| A27 | 一部／未検証 | tui＋PTY：q0／ETX・SIGINT130／SIGTERM143／例外1、raw flags・cursor・alternate復元はpass。実端末の画面・shell入力は未検証 |
+| A28 | 一部／未検証 | 全check、CLI6／PTY9、readonly、性能、README／HTMLはpass。native確認とレビュー完了までR32全体をpassにしない |
+| A29 | pass | cli／installed bin：非TTY既定はstdout空・exit2、snapshot JSONはexit0 |
+| A30 | pass | json-reader／collectors／integration：配下symlink、1MiB+1、消失を隔離。log・他profileのopen0 |
+| A31 | pass | aggregate：created8日前・completed1時間前はreliability対象／usage窓外 |
+| A32 | pass | time／normalize／aggregate：欠損・不正の独立fallback、有効な未来はfallbackせずelapsed null |
+| A33 | pass | normalize：未知model＋ChatGPT URLは保存名のまま対象、根拠なしは警告・除外 |
+| A34 | pass | normalize：mode欠損をmodelから推測せず、browser残骸のあるapiも除外 |
+| A35 | pass | normalize：ChatGPTとGemini根拠の同居をPROVIDER_CONFLICTで除外 |
+| A36 | pass | normalize／aggregate：未知statusはcurrent／reliability外、送信trueのusageは1 |
+| A37 | pass | config／normalize：home変更でprofile default不変、相対保存profileはsession cwd基準 |
+| A38 | pass | collectors／aggregate：選択profileだけを読み、他profileのmaxを採用しない |
+| A39 | pass | aggregate：同profileの古いmax3／新しいmax2→2＋競合警告、同時刻はid順 |
+| A40 | pass | aggregate：所属不明max9を推測採用せず、env4へfallback |
+| A41 | pass | time：不可能日付拒否、+09:00とUTC同値、0001／0099年を正しく保持 |
+| A42 | pass | normalize／aggregate：未来startedAtは過去createdAtへ戻らず、usage窓外／elapsed null |
+| A43 | pass | normalize／aggregate：不完全配列を全体拒否し追加0、duplicate有効文字列は長さ2 |
+| A44 | pass | collectors／aggregate：全体取得不能は3領域null、正常空は[]／0、部分破損は読めた値＋警告 |
+| A45 | pass | serializeJson：生C1・端末制御を出さず、JSON.parse後は保存文字列と一致 |
+| A46 | pass | schema：実Ajv2020 strictでextra property／未知warning／負elapsed／不正null組合せを拒否。算術・順序等はaggregateの別assertion |
+| A47 | 一部／未検証 | render／PTY：幅不足・高さ不足、全件保護列幅、最終行／列の余白、snapshot全件はpass。実端末の折返し・scrollは未検証 |
+| A48 | pass | tui／cli：drain中resize／q／EPIPE、遅延error／closeの停止、重複write・late描画・無限待機なし |
+| A49 | pass | json-reader／collectors：読取中変更を隔離、次poll正常file採用、last-good補完なし |
+
+実端末確認には、最新installed receiptとtarball／dist一致を先に検査する`.workbench/p10/native-run.mjs`、寸法・終了4経路を記載した`native-check.md`を用意しました。これは未実施の開発用手順です。Terminal／GhosttyへのComputer Useがアプリ安全規則で拒否されているため、別経路で回避しません。操作許可の変更か、人間の実施結果を待ちます。自動PTYの成功を目視・shell入力の成功へ転記しません。
 
 ## 残工程と再開条件
 
@@ -594,7 +810,7 @@ P09のcheckpointはprimaryのstaged差分確認・commit待ちです。この担
 | P06 | checkpoint済み | 採取・集約の47テストとfocused履歴 |
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
 | P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
-| P09 | 実装・局所検証済み、checkpoint待ち | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
-| P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
+| P09 | checkpoint済み | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
+| P10 | 局所自動検証成功、primary review前 | native画面／shell入力、最終A表・review・checkpoint・文書／artifact同期 |
 
-P10開始条件は、primaryがP09の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
+P10はP09 checkpoint後にbranch／HEAD／worktreeと所有範囲を再確認して開始しました。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

@@ -8,8 +8,8 @@
 
 ```text
 CLI
- ├─ snapshot ── collectInputs ── buildDashboard ── renderText / serializeJson
- └─ TUI      ── 同じ経路を非重複poll ── viewport付きrenderText
+ ├─ snapshot ── Node採取adapter ── collectInputs ── buildDashboard ── renderText / serializeJson
+ └─ TUI      ── 同じadapterを非重複poll ── viewport付きrenderText
 ```
 
 | ファイル | 公開境界 | 責務 |
@@ -17,6 +17,9 @@ CLI
 | `src/cli.ts` | `main(argv, deps)` | 引数、出力方式、終了コード |
 | `src/config.ts` | `resolveMonitorConfig(...)` | home/profile/intervalと許可設定の解決 |
 | `src/io/json-reader.ts` | `readJsonFile(...)` | 上限付き安全read、JSON／JSON5解析 |
+| `src/io/read-buffer.ts` | 読取bufferの貸出・返却 | 最大1MiB+1の一時領域、排他貸出、使用後のzero化 |
+| `src/io/collector.ts` | `createInputCollector(startup, options?)` | Node採取の `collect(signal)`／冪等な `stop()`、workerの所有 |
+| `src/io/collector-worker.ts` | 内部worker entry | 同じ `collectInputs` と安全なread-only adapterの実行 |
 | `src/io/sessions.ts` | `collectSessions(...)` | 直下走査、最大8並行、ファイル単位隔離 |
 | `src/io/leases.ts` | `collectLeases(...)` | v1台帳、保存件数 |
 | `src/model/normalize.ts` | `normalizeSession(raw, directoryId)` | unknown入力の限定投影・対象判定 |
@@ -31,6 +34,18 @@ CLI
 `aggregate` とモデル層は `node:fs` をimportしません。I/O側からはraw全文ではなく、必要な値だけを投影して渡します。
 
 現在のSnapshotをresize用にメモリへ保持することは許可します。これは描画状態であり、履歴保存やlast-goodデータキャッシュではありません。
+
+### P10のNode採取adapter補足（2026-10-01）
+
+性能実測を受け、採取時のI/O処理を専用Worker 1本へ隔離します。CLI、Snapshot、保存値、変更検知、各pollの全件再読込という契約は維持します。main threadでは同期filesystem syscallを実行せず、端末入力・signal・復元を採取待機から独立させます。これは汎用worker poolや別のデータ源ではありません。
+
+workerは最初の採取時に遅延起動し、TUIのpoll間で同じ1本を再利用します。要求は1件だけで、同時scanは1です。main側で採取開始のnowを1回取得し、固定したcwd／osHome、必要な3環境値（`ORACLE_HOME_DIR`、`ORACLE_BROWSER_PROFILE_DIR`、`ORACLE_BROWSER_MAX_CONCURRENT_TABS`）、intervalを渡します。workerのambient envもHOMEとこの3設定へ限定し、execArgvの継承を止めます。IPCへraw文書やpromptを渡さず、限定投影済みの `CollectInputsResult` だけを返します。
+
+`workerFactory` の任意注入はNode WorkerというOS境界を決定的に検証するためだけです。返信停止、error／exit、遅延返信、idle停止を小さいWorkerPortで注入できます。CLI引数、利用者向け設定、隠し環境変数へは追加しません。`onMetrics` の任意注入はreadの最大並行数・回数・buffer確保量など有限な計数だけを受け、出力schema、ログ、通知、履歴を増やしません。
+
+注入I/Oによる既存の `collectInputs` 経路は保持します。I/O内部の戻り値は `T | PromiseLike<T>` とし、同期値はそのまま使用し、native Promiseを含むPromise-likeは正しくawaitします。別realmのPromiseを `instanceof Promise` だけで同期値と誤認しません。worker内の同期値に不要なmicrotaskを作らず、既存の非同期adapterの待機、即時throw／遅延reject、各停止検査、変更検査、finally closeを維持します。同期値やthenableをnative Promiseだと偽装せず、同期adapterをmain threadへ移すことも認めません。
+
+syscall前後の共有停止flag検査は、adapter method作成時に組み立てるguardでも同じ順序で実施します。検査の削除やrealpath／lstat回数の削減によって性能予算を満たしません。表示の内部整理でも、必要幅は高さによる省略前の全件から求め、可視行だけをformatする場合はSnapshot・省略件数・text／JSONの全件出力を維持します。
 
 ---
 
@@ -443,6 +458,12 @@ JSON解析失敗の1件から、さらにmode欠損・日時欠損等の派生�
 7. file／親directoryのidentityとfileのsize・mtime・ctimeを再確認し、変更を検出したら採用しません。
 8. `finally` でhandleを閉じます。
 
+bufferは通常fileの最初のfstat.sizeに応じて確保し、必要な場合だけ最大1,048,577 bytesまで拡張します。worker内では1本だけの作業bufferを貸し出し、decode／parseが終わるまで他のreadへ貸しません。拡張時の旧領域とfinally返却時の使用領域をzero化します。これはメモリの作業領域であり、metadataの永続キャッシュや次tickの結果補完には使用しません。
+
+short readで最初のfstat.sizeちょうどまで読み、かつ最後のbytesReadがそのreadの要求長未満なら、余分なEOF確認readを行わず後段の全identity／size／mtime／ctime検査へ進めます。size未達のshort readは継続し、bufferを満たした成長は従来どおり1MiB+1まで検出します。short readだけを根拠に任意の途中結果を採用する方式ではありません。
+
+collector側で、`normalizeSession`が返したNormalizedSessionだけを保存文字列の値を変えずにstructuredCloneし、JSONから切り出したstringが原文全体のbacking storageを保持し続けることを避けます。純粋な投影関数にはI/Oやworker管理を追加しません。raw文書をclone、IPC、Snapshotへ渡しません。
+
 `O_NOFOLLOW` はsymlinkを指すopenを失敗させるためのフラグです。通常file検査と併用し、FIFO等を誤って読み続けない設計にします。
 
 UTF-8は `TextDecoder` のfatal設定を使用できます。デコードエラーを文字置換で黙って通すのではなく、当該ファイルの失敗として扱います。
@@ -599,6 +620,10 @@ raw modeではCtrl-CがSIGINTとして発生しないため、入力のETX、す
 
 AbortはOSの進行中readまで即座に中止する保証ではありません。したがって「採取終了を待たず復元開始」と「すべてのOS readが即時完了」を分けます。
 
+Node採取adapterのstopは冪等・同期で、workerの終了Promiseを待ちません。共有停止flagをworkerのI/O前後で検出し、実行可能なfinally closeを行います。main側の待機はabortedで解放し、workerをunrefして終了を要求します。Nodeのdescriptor追跡を有効にし、idle時のworkerも停止対象にします。停止後の採取返信／失敗は採用せず、停止前の予期しないworker error／exitは内部失敗として扱います。OS syscall自体の即時中断は保証しません。
+
+TUIの任意dispose hookは既存の停止経路でAbort要求後に呼び、失敗しても残りの端末復元を試みます。snapshotはfinallyでadapterを停止します。130／143の優先と、遅れて返った採取結果を破棄する契約を保ちます。workerの終了時errorを受ける保護listenerは終了の決着まで残せますが、新しい採取・timer・参照されたactive handleを作らず、決着後に解除します。
+
 停止要求は、進行中の採取とframe／drain待機から終了経路を解放し、raw mode等のローカル復元を開始します。応答しないstdoutのcallbackやdrainを永久に待ちません。出力が詰まっていない通常の復元では、復元writeの完了を待ち、失敗を終了結果へ反映します。既存のframe／drain待機が詰まっている場合は、復元writeを最大1回だけqueueし、そのcallbackの完了を停止処理の前提にしません。この時点で判明している同期例外や復元失敗は直ちに反映し、後から判明する出力失敗は注入可能な通知先へ渡します。
 
 停止時に入力・resize・signal・tick用の自分のlistenerを解除します。既にqueueした出力のerrorを受ける保護listenerは、callback又はcloseまで最大1つ残せます。この保護listenerは新たなwrite、frame、tickやactive handleを作らず、出力の決着後に解除します。errorイベントと遅延callbackの両方を安全に扱い、外部が登録したlistenerは削除しません。
@@ -638,6 +663,10 @@ peak RSS    150MiB以下
 ```
 
 初回採取時間も別に記録します。測定には採取・投影・集計・描画を含め、fixture生成とnpm処理は含めません。
+
+worker起動も初回と60秒測定に含め、CPUは全threadを含むprocess全体を1コア換算、peak RSSもprocess全体で記録します。fixture生成と事前のhash／tree準備は別processで行い、終了後の不変確認は受け入れCPU／RSS値を固定してから行います。測定だけに強制GCを加えません。
+
+workerの `resourceLimits.maxYoungGenerationSizeMb` は4MiBにし、短命objectの領域を制御します。old-generation、stack、ファイル数・有効入力容量へ新たな上限を設ける方式ではありません。最大1MiBの有効fileと保存文字列の同値性を別途検証します。workerの停止・unref・descriptor追跡・領域設定は[Node 24.14.0公式](https://nodejs.org/download/release/v24.14.0/docs/api/worker_threads.html)に照合します。
 
 予算超過を理由の記録だけでpassにしてはいけません。余分な全文保持、無制限Promise、二重走査等を修正し、キャッシュや履歴DBへ逃げず再測定します。
 

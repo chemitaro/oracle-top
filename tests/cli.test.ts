@@ -624,3 +624,20 @@ process.stdout.write(JSON.stringify({clocks,first:first.snapshot.browserCapacity
     warnings: [],
   });
 });
+
+test("snapshot-stops-worker-in-finally-after-usage-result", async () => {
+  await expect(
+    scenario(`
+const {EventEmitter}=await import('node:events');let stopped=0,starts=0;
+class Port extends EventEmitter {postMessage(v){queueMicrotask(()=>this.emit('message',{id:v.id,result:{kind:'usage-error'}}));}ref(){}unref(){}async terminate(){stopped++;return 0;}}
+const out=sink(),err=sink();const code=await main(['snapshot','--json'],{...deps(out.stream,err.stream),workerFactory(){starts++;return new Port();}});
+process.stdout.write(JSON.stringify({code,starts,stopped,stdout:out.text(),stderr:err.text()}));
+`),
+  ).resolves.toEqual({
+    code: 2,
+    starts: 1,
+    stopped: 1,
+    stdout: "",
+    stderr: "Invalid arguments. Use oracle-top --help.\n",
+  });
+});

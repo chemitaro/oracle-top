@@ -1,6 +1,7 @@
 import type { DataWarning } from "../model/dashboard.js";
 import {
   readJsonFile,
+  isAsyncValue,
   nodeReadOnlyFileSystem,
   type ReadOnlyFileSystem,
 } from "./json-reader.js";
@@ -24,7 +25,8 @@ export async function collectLeases(
   const io = request.io ?? nodeReadOnlyFileSystem;
   let profileRealPath: string;
   try {
-    profileRealPath = await io.realpath(request.profilePath);
+    const ioResult1 = io.realpath(request.profilePath);
+    profileRealPath = isAsyncValue(ioResult1) ? await ioResult1 : ioResult1;
   } catch (error: unknown) {
     if (request.signal?.aborted) return { kind: "aborted" };
     const code =
@@ -47,7 +49,8 @@ export async function collectLeases(
   if (request.signal?.aborted) return { kind: "aborted" };
   let before: import("node:fs").BigIntStats;
   try {
-    before = await io.lstat(profileRealPath);
+    const ioResult2 = io.lstat(profileRealPath);
+    before = isAsyncValue(ioResult2) ? await ioResult2 : ioResult2;
   } catch (error: unknown) {
     if (request.signal?.aborted) return { kind: "aborted" };
     return {
@@ -76,7 +79,8 @@ export async function collectLeases(
   if (doc.kind === "aborted" || request.signal?.aborted)
     return { kind: "aborted" };
   try {
-    const after = await io.lstat(profileRealPath);
+    const ioResult3 = io.lstat(profileRealPath);
+    const after = isAsyncValue(ioResult3) ? await ioResult3 : ioResult3;
     if (request.signal?.aborted) return { kind: "aborted" };
     if (
       !after.isDirectory() ||

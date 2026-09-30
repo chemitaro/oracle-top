@@ -73,13 +73,13 @@ export function renderText(
       ? ["Current sessions unavailable"]
       : currentValues.length === 0
         ? ["No current sessions"]
-        : currentValues.map((row) => tableLine(row, currentWidths));
+        : currentValues;
   const submitted =
     snapshot.submittedMessages === null
       ? ["Submitted messages unavailable"]
       : usageValues.length === 0
         ? ["No submitted messages"]
-        : usageValues.map((row) => tableLine(row, usageWidths));
+        : usageValues;
   let top = [
     `ORACLE TOP   ${localClock(snapshot.generatedAt)}`,
     `Browser slots (stored): ${capacity.active ?? "N/A"} / ${capacity.maximum}  ${percent(capacity.utilization)}     Current sessions: ${snapshot.currentSessions?.length ?? "N/A"}`,
@@ -115,7 +115,17 @@ export function renderText(
       : []),
   ];
   if (!viewport)
-    return [...top, ...currents, ...middle, ...submitted, ...bottom]
+    return [
+      ...top,
+      ...currents.map((row) =>
+        typeof row === "string" ? row : tableLine(row, currentWidths),
+      ),
+      ...middle,
+      ...submitted.map((row) =>
+        typeof row === "string" ? row : tableLine(row, usageWidths),
+      ),
+      ...bottom,
+    ]
       .map(sanitizeText)
       .join("\n");
   const columns = viewport.columns - 1;
@@ -140,9 +150,13 @@ export function renderText(
   usageBudget += Math.min(unused, submitted.length - usageBudget);
   return [
     ...top,
-    ...limited(currents, currentBudget),
+    ...limited(currents, currentBudget).map((row) =>
+      typeof row === "string" ? row : tableLine(row, currentWidths),
+    ),
     ...middle,
-    ...limited(submitted, usageBudget),
+    ...limited(submitted, usageBudget).map((row) =>
+      typeof row === "string" ? row : tableLine(row, usageWidths),
+    ),
     ...bottom,
   ]
     .map(sanitizeText)
@@ -176,7 +190,10 @@ function elapsed(ms: number | null): string {
   return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function limited(rows: string[], budget: number): string[] {
+function limited(
+  rows: (string | string[])[],
+  budget: number,
+): (string | string[])[] {
   return rows.length <= budget
     ? rows
     : [

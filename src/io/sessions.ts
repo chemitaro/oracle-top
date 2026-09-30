@@ -13,10 +13,12 @@ import {
   readJsonFile,
   nodeReadOnlyFileSystem,
   type ReadOnlyFileSystem,
+  type Awaitable,
+  isAsyncValue,
 } from "./json-reader.js";
 
 export interface CollectorFileSystem extends ReadOnlyFileSystem {
-  readdir(path: string): Promise<string[]>;
+  readdir(path: string): Awaitable<string[]>;
 }
 export const nodeCollectorFileSystem: CollectorFileSystem = {
   ...nodeReadOnlyFileSystem,
@@ -59,25 +61,31 @@ export async function collectSessions(
     dataWarnings: [{ source: "sessions", code }],
   });
   try {
-    const root = await io.realpath(request.homePath);
+    const ioResult1 = io.realpath(request.homePath);
+    const root = isAsyncValue(ioResult1) ? await ioResult1 : ioResult1;
     if (request.signal?.aborted) return { kind: "aborted" };
     observed = true;
-    const rootBefore = await io.lstat(root);
+    const ioResult2 = io.lstat(root);
+    const rootBefore = isAsyncValue(ioResult2) ? await ioResult2 : ioResult2;
     observed = false;
     if (request.signal?.aborted) return { kind: "aborted" };
     const path = join(root, "sessions");
-    const before = await io.lstat(path);
+    const ioResult3 = io.lstat(path);
+    const before = isAsyncValue(ioResult3) ? await ioResult3 : ioResult3;
     if (request.signal?.aborted) return { kind: "aborted" };
     if (before.isSymbolicLink()) return unavailable("SYMLINK_SKIPPED");
     if (!before.isDirectory()) return unavailable("SESSIONS_UNREADABLE");
     observed = true;
-    const ids = await io.readdir(path);
+    const ioResult4 = io.readdir(path);
+    const ids = isAsyncValue(ioResult4) ? await ioResult4 : ioResult4;
     if (request.signal?.aborted) return { kind: "aborted" };
     {
-      const after = await io.lstat(path);
+      const ioResult5 = io.lstat(path);
+      const after = isAsyncValue(ioResult5) ? await ioResult5 : ioResult5;
       if (request.signal?.aborted) return { kind: "aborted" };
       if (!sameDirectory(before, after)) return unavailable("FILE_CHANGED");
-      const afterRoot = await io.lstat(root);
+      const ioResult6 = io.lstat(root);
+      const afterRoot = isAsyncValue(ioResult6) ? await ioResult6 : ioResult6;
       if (request.signal?.aborted) return { kind: "aborted" };
       if (!sameDirectory(rootBefore, afterRoot))
         return unavailable("FILE_CHANGED");
@@ -88,7 +96,8 @@ export async function collectSessions(
       if (request.signal?.aborted) return { kind: "aborted" };
       let stat: import("node:fs").BigIntStats;
       try {
-        stat = await io.lstat(join(path, id));
+        const ioResult7 = io.lstat(join(path, id));
+        stat = isAsyncValue(ioResult7) ? await ioResult7 : ioResult7;
       } catch (error: unknown) {
         if (request.signal?.aborted) return { kind: "aborted" };
         const code =
@@ -126,7 +135,8 @@ export async function collectSessions(
       if (doc.kind === "aborted" || request.signal?.aborted)
         return { kind: "aborted" };
       try {
-        const after = await io.lstat(join(path, id));
+        const ioResult8 = io.lstat(join(path, id));
+        const after = isAsyncValue(ioResult8) ? await ioResult8 : ioResult8;
         if (request.signal?.aborted) return { kind: "aborted" };
         if (!sameDirectory(stat, after)) {
           dataWarnings.push({
@@ -148,14 +158,19 @@ export async function collectSessions(
       if (doc.kind === "value") {
         const result = normalizeSession(doc.value, id);
         dataWarnings.push(...result.dataWarnings);
-        if (result.kind === "session") sessions.push(result.session);
+        if (result.kind === "session")
+          sessions.push(structuredClone(result.session));
       } else if (doc.kind === "warning") dataWarnings.push(doc.warning);
     }
     {
-      const after = await io.lstat(path);
+      const ioResult9 = io.lstat(path);
+      const after = isAsyncValue(ioResult9) ? await ioResult9 : ioResult9;
       if (request.signal?.aborted) return { kind: "aborted" };
       if (!sameDirectory(before, after)) return unavailable("FILE_CHANGED");
-      const afterRoot = await io.lstat(root);
+      const ioResult10 = io.lstat(root);
+      const afterRoot = isAsyncValue(ioResult10)
+        ? await ioResult10
+        : ioResult10;
       if (request.signal?.aborted) return { kind: "aborted" };
       if (!sameDirectory(rootBefore, afterRoot))
         return unavailable("FILE_CHANGED");

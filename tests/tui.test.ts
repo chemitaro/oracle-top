@@ -637,3 +637,64 @@ test("output-close-during-drain-stops-without-restoration-write", async () => {
   expect(h.input.paused).toBe(true);
   expect(h.output.listenerCount("error")).toBe(0);
 });
+
+test("disposes-after-abort-without-waiting-for-collection", async () => {
+  const pending = deferred<TuiCollectResult>();
+  const h = harness(() => pending.promise);
+  let disposed = 0,
+    aborted = false;
+  h.deps.dispose = () => {
+    disposed++;
+    aborted = h.aborts[0]!.aborted;
+  };
+  const running = runTui(h.deps, 2000);
+  await flush();
+  h.input.emit("data", "q");
+  await expect(running).resolves.toBe(0);
+  expect({
+    disposed,
+    aborted,
+    raw: h.input.isRaw,
+    restored: h.output.frames.includes("\u001b[?25h\u001b[0m\u001b[?1049l"),
+  }).toEqual({ disposed: 1, aborted: true, raw: false, restored: true });
+  pending.resolve({ kind: "snapshot", snapshot: snapshot() });
+  await flush();
+});
+test("continues-restoration-after-dispose-failure", async () => {
+  const h = harness();
+  h.deps.dispose = () => {
+    throw new Error("synthetic dispose");
+  };
+  const running = runTui(h.deps, 2000);
+  await flush();
+  let threw = false;
+  try {
+    h.input.emit("data", "q");
+  } catch {
+    threw = true;
+  }
+  expect({
+    threw,
+    raw: h.input.isRaw,
+    restored: h.output.frames.includes("\u001b[?25h\u001b[0m\u001b[?1049l"),
+  }).toEqual({ threw: false, raw: false, restored: true });
+  await expect(running).resolves.toBe(1);
+});
+
+test("preserves-signal-priority-when-dispose-fails", async () => {
+  for (const [signal, code] of [
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ] as const) {
+    const h = harness();
+    h.deps.dispose = () => {
+      throw new Error("synthetic dispose");
+    };
+    const running = runTui(h.deps, 2000);
+    await flush();
+    h.signals.emit(signal);
+    await expect(running).resolves.toBe(code);
+    expect(h.input.isRaw).toBe(false);
+    expect(h.output.frames).toContain("\u001b[?25h\u001b[0m\u001b[?1049l");
+  }
+});

@@ -2,6 +2,7 @@ import { constants, type BigIntStats } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import JSON5 from "json5";
+import type { ReadBufferPool } from "./read-buffer.js";
 import type { DataWarning, DataWarningCode } from "../model/dashboard.js";
 
 export type WarningContext =
@@ -17,21 +18,32 @@ export interface JsonReadRequest {
   signal?: AbortSignal;
 }
 
+export type Awaitable<T> = T | PromiseLike<T>;
+export function isAsyncValue<T>(value: Awaitable<T>): value is PromiseLike<T> {
+  return (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
+}
+
 export interface ReadOnlyHandle {
-  stat(): Promise<BigIntStats>;
+  stat(): Awaitable<BigIntStats>;
   read(
     buffer: Uint8Array,
     offset: number,
     length: number,
     position: number,
-  ): Promise<{ bytesRead: number }>;
-  close(): Promise<void>;
+  ): Awaitable<{ bytesRead: number }>;
+  close(): Awaitable<void>;
 }
 
 export interface ReadOnlyFileSystem {
-  realpath(path: string): Promise<string>;
-  lstat(path: string): Promise<BigIntStats>;
-  open(path: string, flags: number): Promise<ReadOnlyHandle>;
+  readonly bufferPool?: ReadBufferPool;
+  realpath(path: string): Awaitable<string>;
+  lstat(path: string): Awaitable<BigIntStats>;
+  open(path: string, flags: number): Awaitable<ReadOnlyHandle>;
 }
 
 export const nodeReadOnlyFileSystem: ReadOnlyFileSystem = {
@@ -69,7 +81,7 @@ export async function readJsonFile(
     )
   )
     return warning(request, "INVALID_FIELD");
-  const state = { observed: false };
+  const state = { observed: false, loaned: false };
   try {
     const result = await readDocument(request, state);
     return request.signal?.aborted ? { kind: "aborted" } : result;
@@ -87,25 +99,33 @@ export async function readJsonFile(
         state.observed ? "FILE_CHANGED" : "SYMLINK_SKIPPED",
       );
     return warning(request, "FILE_UNREADABLE");
+  } finally {
+    if (state.loaned) request.io?.bufferPool?.release();
   }
 }
 
 async function readDocument(
   request: JsonReadRequest,
-  state: { observed: boolean },
+  state: { observed: boolean; loaned: boolean },
 ): Promise<JsonReadResult> {
   const io = request.io ?? nodeReadOnlyFileSystem;
-  const resolvedRoot = await io.realpath(request.rootPath);
+  const ioResult1 = io.realpath(request.rootPath);
+  const resolvedRoot = isAsyncValue(ioResult1) ? await ioResult1 : ioResult1;
   if (request.signal?.aborted) return { kind: "aborted" };
   let path = resolvedRoot;
+  const rootStatResult = io.lstat(path);
+  const rootStat = isAsyncValue(rootStatResult)
+    ? await rootStatResult
+    : rootStatResult;
   const parents: { path: string; stat: BigIntStats }[] = [
-    { path, stat: await io.lstat(path) },
+    { path, stat: rootStat },
   ];
   let before: BigIntStats = parents[0]!.stat;
   for (let index = 0; index < request.pathSegments.length; index++) {
     if (request.signal?.aborted) return { kind: "aborted" };
     path = join(path, request.pathSegments[index]!);
-    before = await io.lstat(path);
+    const ioResult2 = io.lstat(path);
+    before = isAsyncValue(ioResult2) ? await ioResult2 : ioResult2;
     if (before.isSymbolicLink()) return warning(request, "SYMLINK_SKIPPED");
     if (index < request.pathSegments.length - 1) {
       if (!before.isDirectory()) return warning(request, "FILE_NOT_REGULAR");
@@ -114,39 +134,63 @@ async function readDocument(
   }
   state.observed = true;
   if (request.signal?.aborted) return { kind: "aborted" };
-  const handle = await io.open(
+  const ioResult3 = io.open(
     path,
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
   );
+  const handle = isAsyncValue(ioResult3) ? await ioResult3 : ioResult3;
   let bytes: Uint8Array;
   try {
-    const stat = await handle.stat();
+    const ioResult4 = handle.stat();
+    const stat = isAsyncValue(ioResult4) ? await ioResult4 : ioResult4;
     if (request.signal?.aborted) return { kind: "aborted" };
     if (!sameVersion(before, stat)) return warning(request, "FILE_CHANGED");
     if (!stat.isFile()) return warning(request, "FILE_NOT_REGULAR");
     if (stat.size > 1_048_576n) return warning(request, "FILE_TOO_LARGE");
-    const buffer = new Uint8Array(1_048_577);
+    let buffer = io.bufferPool
+      ? io.bufferPool.borrow(Number(stat.size) + 1)
+      : new Uint8Array(Number(stat.size) + 1);
+    state.loaned = io.bufferPool !== undefined;
     let total = 0;
-    while (total < buffer.length) {
+    while (total < 1_048_577) {
+      if (total === buffer.length) {
+        const size = Math.min(1_048_577, buffer.length * 2);
+        const expanded = io.bufferPool
+          ? io.bufferPool.grow(buffer, size)
+          : new Uint8Array(size);
+        if (!io.bufferPool) expanded.set(buffer);
+        buffer = expanded;
+      }
       if (request.signal?.aborted) return { kind: "aborted" };
-      const { bytesRead } = await handle.read(
+      const requested = buffer.length - total;
+      const ioResult5 = handle.read(
         buffer,
         total,
         buffer.length - total,
         total,
       );
+      const { bytesRead } = isAsyncValue(ioResult5)
+        ? await ioResult5
+        : ioResult5;
       if (request.signal?.aborted) return { kind: "aborted" };
       if (bytesRead === 0) break;
       total += bytesRead;
+      if (total === Number(stat.size) && bytesRead < requested) break;
     }
     if (total > 1_048_576) return warning(request, "FILE_TOO_LARGE");
-    if (
-      !sameVersion(stat, await handle.stat()) ||
-      !sameVersion(stat, await io.lstat(path))
-    )
-      return warning(request, "FILE_CHANGED");
+    const ioResult6 = handle.stat();
+    const after = isAsyncValue(ioResult6) ? await ioResult6 : ioResult6;
+    if (request.signal?.aborted) return { kind: "aborted" };
+    if (!sameVersion(stat, after)) return warning(request, "FILE_CHANGED");
+    const ioResult7 = io.lstat(path);
+    const finalPath = isAsyncValue(ioResult7) ? await ioResult7 : ioResult7;
+    if (request.signal?.aborted) return { kind: "aborted" };
+    if (!sameVersion(stat, finalPath)) return warning(request, "FILE_CHANGED");
     for (const parent of parents) {
-      const current = await io.lstat(parent.path);
+      if (request.signal?.aborted) return { kind: "aborted" };
+      const ioResult8 = io.lstat(parent.path);
+      const current = isAsyncValue(ioResult8) ? await ioResult8 : ioResult8;
+      if (request.signal?.aborted) return { kind: "aborted" };
       if (
         !current.isDirectory() ||
         current.dev !== parent.stat.dev ||
@@ -157,7 +201,8 @@ async function readDocument(
     if (request.signal?.aborted) return { kind: "aborted" };
     bytes = buffer.subarray(0, total);
   } finally {
-    await handle.close();
+    const closing = handle.close();
+    if (isAsyncValue(closing)) await closing;
   }
   let text: string;
   try {
