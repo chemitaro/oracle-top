@@ -1,0 +1,6 @@
+.workbench/
+node_modules/
+dist/
+coverage/
+docs/
+artifacts/

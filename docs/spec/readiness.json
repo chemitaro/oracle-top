@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ready": true,
   "status": "ready",
-  "implementationStarted": false,
+  "implementationStarted": true,
   "implementationModel": "gpt-6.1-sol",
   "implementationReasoning": "high",
   "consultedConversationId": "6abaed0b-f140-83e8-989e-6a45257cf680",
@@ -31,5 +31,7 @@
     "boundary-decisions.md",
     "oracle-evidence.md",
     "conversation-baseline.md"
-  ]
+  ],
+  "implementationStatus": "in-progress",
+  "implementationBaseCommit": "f5b745107f09421655e05c92c8aef7603e9ee68d"
 }
