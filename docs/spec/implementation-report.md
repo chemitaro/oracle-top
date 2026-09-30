@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P07はcheckpoint済み、P08の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P09〜P10は未実施で、製品実装は未完了です。
+状態: P02〜P08はcheckpoint済み、P09の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P10は未実施で、製品実装は未完了です。
 
 ## 実装環境と基準
 
@@ -505,7 +505,84 @@ built-cli-exits-zero-when-output-pipe-closes
 
 既存CIとpackage checkはtest→build順で、新規checkoutにはdistがないためbuilt CLI testが成立しませんでした。primaryがCIとcheckをformat→typecheck→build→testの順へ修正しました。既存workspaceの`npm run check`と、src／全tests／package／TypeScript・Prettier設定／Schema・例をSHA-256一致で配置し、dist／Workbenchの事前不存在を確認した隔離cwdの`npm run check`は、いずれもexit0・全192件passです。clone／ネットワークは使用せず、一時cwdを削除しました。元ログは`.workbench/p08/primary-check.log`、`check-order-fresh.log`、配置証拠は`check-order-proof.txt`です。GitHub Actionsのremote実行結果はまだ取得していません。
 
-P08のcheckpointはprimaryの差分・元ログ確認待ちです。この担当はstage／commit／push／branch変更、外部分析、追加agentを実行していません。packはdry-runのみでpublishしていません。P09／P10、実TUI、tarball導入、実TTY、正式60秒性能・全受け入れは未完です。
+P08 checkpoint SHAは`c556f09fd52083e1c355815871b93aaaf85d69e7`です（primaryの完全差分・元ログ確認・commit済み）。この担当はstage／commit／push／branch変更、外部分析、追加agentを実行していません。packはdry-runのみでpublishしていません。P09／P10、実TUI、tarball導入、実TTY、正式60秒性能・全受け入れは未完です。
+
+## P09 — TUIライフサイクルと実runner接続
+
+開始時は`main`／`c556f09fd52083e1c355815871b93aaaf85d69e7`／cleanを確認しました。変更は`src/tui.ts`、`tests/tui.test.ts`、CLIの実runner接続とCLI tests、本reportです。primary所有のREADME／design／verification等を保持しました。新moduleの抽出・runtime依存追加はありません。
+
+公開`runTui(deps, intervalMs)`はterminal／monotonic timer／collectorを注入し、snapshot／usage-error／abortedの結果境界を使います。実rendererでviewport本文を作り、alternate screen・cursor・clear制御だけを製品で追加します。unitのterminal／timer／collectorはすべて合成adapterです。初回、2,000ms tick、初回scan＋drawが5,000msに完了した場合の次6,000ms開始を確認しました。scan／drawは直列で、完了時より後の開始グリッドへ一つの次tickだけを予約し、missed tickを追いかけません。
+
+resizeは最新Snapshotの再描画だけで、追加採取をしません。連続resizeを最後の寸法へまとめ、採取／描画／背圧待機中は最新のresize要求だけを保持します。callbackとwrite(false)のdrainを待ってから次のframe／scanへ進み、無限frame queueを作りません。小さいviewportや0列も既存rendererをそのまま使います。
+
+停止は冪等で、自分のpoll／resize timer・data／input error／resize／signal listenerを解除し、Abortを発行、保存raw状態へ戻し、自分が開始したinput flowをpauseします。既存のraw／flow／listenerは保持します。cursor表示・SGR reset・alternate leaveを試み、一つのlocal復元失敗でも後続を試します。q0、ETX／SIGINT130、SIGTERM143、内部／input／出力障害／通常復元障害1、stdout EPIPE0です。EPIPE後は同stdoutへ復元writeを追加しません。close済みstdoutにもwriteを追加せず、local復元を行います。
+
+採取待機・frame／drain待機中の停止は、採取や出力callbackの完了を前提にせずlocal復元を開始します。出力が詰まっていない通常復元はcallbackを待ちます。既存出力が詰まっていれば復元writeを最大1回queueし、runTuiを待機から解放します。残したerror guardianは自分のもの最大1つで、queued callback／closeが決着すると解除し、新timer／frame／writeを起こしません。遅延callbackのerrorとerror eventの両方を受けても通知を重複しません。終了後に採取がresolve／rejectしても描画・予約・exit変更をしません。
+
+背圧停止後の遅延出力失敗は注入`onLateExitCode`へ渡します。unitはglobal process.exitCodeを変更しません。CLI entryはmainの返却と遅延通知を統合し、早い障害1を後のmain0で上書きせず、130／143を保持します。この非応答stdoutの優先境界はprimaryと確認し、primaryがdesign5.8へ明示しました。
+
+同moduleの`createNodeTuiDependencies(startup, options)`をdefault CLIへ接続しました。Nodeのstdin／stdout／自身のsignal listener、performance.nowとsetTimeout、既存collectInputs→buildDashboard→renderTextを使います。起動env／cwd／osHomeは固定コピー、user configは各採取で再読込です。実adapterの合成childでdefault runner→採取・描画→q→raw／input flow復元を確認しました。設定3→4再読込とstartup envの後変更を受けない結果も確認しました。P08の未実装runner状態caseは「不完全terminal adapterを安全なexit1へ閉じる」caseへ更新し、その他のP08契約を保持しました。
+
+### TDD実行証拠
+
+`tdd`に従い実行可能stubから一件ずつ実装しました。選択commandは`npm test -- tests/<suite>.test.ts -t '^<name>$' --reporter=verbose`です。下表17件は対象各1件のAssertionErrorを元ログで確認したRed exit1→Green exit0です。import／compile／spawn失敗、timeout、0件suiteは含みません。非同期結果はresolvesとliteral期待値で確認します。
+
+| suite | 真のassertion Red→Green | Red / Green exit |
+|---|---|---|
+| tui | collects-immediately-and-renders-current-viewport | 1 / 0 |
+| tui | polls-on-two-second-start-grid | 1 / 0 |
+| tui | coalesces-resize-without-collecting | 1 / 0 |
+| tui | q-aborts-restores-and-removes-only-owned-resources | 1 / 0 |
+| tui | raw-etx-and-sigint-exit-130 | 1 / 0 |
+| tui | sigterm-exits-143-and-preserves-signal-code-on-restore-failure | 1 / 0 |
+| tui | waits-for-frame-drain-before-next-scan | 1 / 0 |
+| tui | resize-during-drain-keeps-only-latest-dimensions | 1 / 0 |
+| tui | epipe-exits-zero-without-restoring-to-broken-stdout | 1 / 0 |
+| tui | q-during-drain-resolves-and-bounds-late-error-guardian | 1 / 0 |
+| tui | late-collector-rejection-does-not-change-exit-or-write | 1 / 0 |
+| tui | input-error-restores-with-safe-exit-one | 1 / 0 |
+| cli | connects-default-runner-to-node-adapters-and-restores-input | 1 / 0 |
+| cli | entry-keeps-early-late-error-instead-of-overwriting-with-main-zero | 1 / 0 |
+| tui | pending-output-close-notifies-late-failure-and-removes-guardian | 1 / 0 |
+| tui | error-during-drain-after-callback-releases-stop | 1 / 0 |
+| tui | output-close-during-drain-stops-without-restoration-write | 1 / 0 |
+
+次の13件は初回pass回帰です。既存の組合せで成立したslow scan／例外／遅延通知等に人工的なRedを作っていません。CLIの遅延障害・signal2件の初回は同じselectionで2件pass、残りは各1件の選択です。
+
+```text
+tui: skips-missed-ticks-without-overlap
+tui: internal-collector-exception-restores-and-exits-one
+tui: other-output-error-exits-one-and-keeps-local-restoration
+tui: q-during-collection-restores-before-late-result
+tui: late-output-error-notifies-once-after-backpressured-q
+tui: late-output-error-keeps-signal-exit-code
+tui: normal-restoration-output-failure-exits-one
+tui: guardian-close-cleans-up-without-new-frames
+tui: restores-original-raw-and-input-flow-state
+tui: cleanup-attempts-remaining-steps-after-local-failure
+cli: entry-reflects-delayed-output-error-in-final-process-code
+cli: entry-keeps-signal-code-after-late-output-error
+cli: node-collector-rereads-config-with-fixed-startup
+```
+
+Workbench ensure→親directoryの作成・実在確認後にログを書きました。元command／stdout・stderrは`.workbench/p09/cycles.log`、exitは`exits.txt`、CLIの先行buildは`build.log`へ保持しています。途中typecheckはtest harnessのfixturesとreturn型の循環推論・派生implicit anyでexit1でした。明示Harness型を付けてexit0へ修復し、このcompile失敗を製品Redと扱いません。その他にTDD手順逸脱や未処理runtime失敗はありません。中間22件成功と最新25件成功のログを両方保持します。
+
+### 最終検証
+
+| command | exit | 結果・証拠 |
+|---|---:|---|
+| `npm test -- tests/tui.test.ts -t '^skips-missed-ticks-without-overlap$' --reporter=verbose` | 0 | 指定case 1件pass、cycles.log |
+| `npm test -- tests/tui.test.ts --reporter=verbose` | 0 | TUI25件pass、suite.log |
+| `npm test -- tests/cli.test.ts --reporter=verbose` | 0 | CLI30件pass（既存25件＋P09追加5件）、cli-suite.log |
+| `npm run typecheck` | 0 | typecheck.log |
+| `npm run check` | 0 | format／typecheck／build／全222件・10suite、check.log |
+| `git diff --check` | 0 | 空白エラーなし |
+
+CLI scenarioとbuilt entry試験は専用childのHOME／home／profileを合成fixtureへ固定し、deps未接続でもlive Oracleへ到達しない隔離を維持しました。terminal preloadはchildだけの制御で、親env／stdio／exitCodeを変更しません。fixtureは後始末済み、元ログは保持しています。P09で実Oracleデータ・秘密値を使用していません。製品の対象データwrite／Oracle・Chrome・CDP・ネットワーク・cleanup・process probeを追加していません。
+
+primaryは製品・testの全差分を読み、元cycles.logとexits.txtから17件すべての対象1件AssertionError・Red1→Green0を独立照合しました。4 source/testのSHA256と元ログhashを`.workbench/p09/primary-cycles-proof.json`へ記録しました。`npm run check`を改めて実行し、exit0、全222件・10suiteとformat／typecheck／buildの成功を確認しました（primary-check.log）。READMEへ起動・設定・数字の意味を追加し、説明HTMLを同じ検証範囲へ同期しました。HTMLの既定validatorはexit0で、1図のSVG描画と拡大・keyboard・focus復元が成功しました。これらを導入済みCLI・実端末・正式性能の検証証拠には使いません。
+
+P09のcheckpointはprimaryのstaged差分確認・commit待ちです。この担当はGit書込み、外部分析、追加agentを実行していません。P10の導入済みtarball、built CLIの実PTY／native TTY、正式60秒CPU／RSS／p95、安全性全受け入れは未検証です。Node実adapter接続の合成child検証を実端末の画面・復元確認とは扱いません。製品受け入れ全体は未完了です。
 
 ## 残工程と再開条件
 
@@ -516,8 +593,8 @@ P08のcheckpointはprimaryの差分・元ログ確認待ちです。この担当
 | P05 | checkpoint済み | 限定投影・日時の46テストとfocused履歴 |
 | P06 | checkpoint済み | 採取・集約の47テストとfocused履歴 |
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
-| P08 | 実装・局所検証済み、checkpoint待ち | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
-| P09 | 未実施 | TUI終了・復元・resize・非重複poll |
+| P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
+| P09 | 実装・局所検証済み、checkpoint待ち | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
 | P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
 
-P09開始条件は、primaryがP08の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
+P10開始条件は、primaryがP09の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

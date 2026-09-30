@@ -599,6 +599,10 @@ raw modeではCtrl-CがSIGINTとして発生しないため、入力のETX、す
 
 AbortはOSの進行中readまで即座に中止する保証ではありません。したがって「採取終了を待たず復元開始」と「すべてのOS readが即時完了」を分けます。
 
+停止要求は、進行中の採取とframe／drain待機から終了経路を解放し、raw mode等のローカル復元を開始します。応答しないstdoutのcallbackやdrainを永久に待ちません。出力が詰まっていない通常の復元では、復元writeの完了を待ち、失敗を終了結果へ反映します。既存のframe／drain待機が詰まっている場合は、復元writeを最大1回だけqueueし、そのcallbackの完了を停止処理の前提にしません。この時点で判明している同期例外や復元失敗は直ちに反映し、後から判明する出力失敗は注入可能な通知先へ渡します。
+
+停止時に入力・resize・signal・tick用の自分のlistenerを解除します。既にqueueした出力のerrorを受ける保護listenerは、callback又はcloseまで最大1つ残せます。この保護listenerは新たなwrite、frame、tickやactive handleを作らず、出力の決着後に解除します。errorイベントと遅延callbackの両方を安全に扱い、外部が登録したlistenerは削除しません。
+
 | 終了理由 | exit code |
 |---|---:|
 | 正常snapshot、q | 0 |
@@ -610,6 +614,8 @@ AbortはOSの進行中readまで即座に中止する保証ではありません
 | SIGTERM | 143 |
 
 signal終了時はsignalのcodeを維持します。EPIPE後に同じstdoutへ復元文字列を再送しません。raw mode等のローカル復元は試みます。SIGKILLや端末そのものの切断に対して、画面復元完了は保証しません。
+
+この表はCLIプロセスの最終終了コードの契約です。Node adapterとCLI entryは遅延出力失敗の通知も最終結果へ統合し、先に観測した失敗の1を後から返った正常結果の0で上書きしません。130／143は遅延失敗より優先します。注入したunit adapter自身がglobalなprocess.exitCodeを書き換える設計にはしません。
 
 ---
 

@@ -27,21 +27,25 @@ afterEach(async () => {
 });
 async function run(
   args: string[],
-  options: { bin?: string; env?: NodeJS.ProcessEnv } = {},
+  options: { bin?: string; env?: NodeJS.ProcessEnv; nodeArgs?: string[] } = {},
 ) {
   try {
-    const result = await exec(process.execPath, [options.bin ?? cli, ...args], {
-      cwd: fixture,
-      env: {
-        ...process.env,
-        ORACLE_HOME_DIR: home,
-        ORACLE_BROWSER_PROFILE_DIR: profile,
-        ORACLE_BROWSER_MAX_CONCURRENT_TABS: "",
-        TERM: "xterm",
-        ...options.env,
-        HOME: fixture,
+    const result = await exec(
+      process.execPath,
+      [...(options.nodeArgs ?? []), options.bin ?? cli, ...args],
+      {
+        cwd: fixture,
+        env: {
+          ...process.env,
+          ORACLE_HOME_DIR: home,
+          ORACLE_BROWSER_PROFILE_DIR: profile,
+          ORACLE_BROWSER_MAX_CONCURRENT_TABS: "",
+          TERM: "xterm",
+          ...options.env,
+          HOME: fixture,
+        },
       },
-    });
+    );
     return { stdout: result.stdout, stderr: result.stderr, code: 0 };
   } catch (error) {
     const failure = error as { stdout: string; stderr: string; code: number };
@@ -405,7 +409,7 @@ test("defines-distribution-bin-and-runs-symlink-entry", async () => {
     stdout: "0.1.0\n",
   });
 });
-test("valid-tty-is-unfinished-without-runner-not-false-success", async () => {
+test("rejects-incomplete-terminal-adapter-with-safe-exit", async () => {
   await expect(
     scenario(`
 const out=sink(),err=sink();out.stream.isTTY=true;
@@ -522,4 +526,101 @@ const result=await new Promise(resolve=>child.on("close",(code,signal)=>resolve(
 process.stdout.write(JSON.stringify(result));
 `),
   ).resolves.toEqual({ code: 0, signal: null, err: "" });
+});
+
+test("connects-default-runner-to-node-adapters-and-restores-input", async () => {
+  await expect(
+    scenario(`
+const {PassThrough}=await import("node:stream");
+const input=new PassThrough();input.isTTY=true;input.isRaw=false;input.setRawMode=value=>{input.isRaw=value;};
+let text="";const out=new Writable({write(chunk,encoding,done){text+=chunk.toString();if(chunk.toString().startsWith("\\u001b[H"))setImmediate(()=>input.write("q"));done();}});out.isTTY=true;out.columns=120;out.rows=32;
+const err=sink();
+const code=await main([],{...deps(out,err.stream),stdin:input});
+process.stdout.write(JSON.stringify({code,raw:input.isRaw,paused:input.isPaused(),current:text.includes("No current sessions"),entered:text.includes("\\u001b[?1049h"),restored:text.includes("\\u001b[?1049l"),err:err.text()}));
+`),
+  ).resolves.toEqual({
+    code: 0,
+    raw: false,
+    paused: true,
+    current: true,
+    entered: true,
+    restored: true,
+    err: "",
+  });
+});
+
+async function entryOutputFailure(delay: number, signal = false) {
+  const preload = join(fixture, "terminal-preload.mjs");
+  await writeFile(
+    preload,
+    `
+Object.defineProperty(process.stdin,"isTTY",{value:true});
+process.stdin.isRaw=false;process.stdin.setRawMode=value=>{process.stdin.isRaw=value;};
+Object.defineProperty(process.stdout,"isTTY",{value:true});
+process.stdout.columns=120;process.stdout.rows=32;
+let frameCallback,restoreCallback;
+process.stdout.write=(value,callback)=>{
+ if(value.startsWith("\\u001b[?1049h")){callback?.();return true;}
+ if(value.startsWith("\\u001b[H")){
+  frameCallback=callback;
+  queueMicrotask(()=>{
+   ${signal ? 'process.emit("SIGTERM");' : 'process.stdin.emit("data",Buffer.from("q"));'}
+   const fail=()=>{const error=Object.assign(new Error("synthetic-private-detail"),{code:"EIO"});process.stdout.emit("error",error);frameCallback?.(error);restoreCallback?.(error);};
+   ${delay === 0 ? "fail();" : `setTimeout(fail,${delay});`}
+  });
+  return false;
+ }
+ if(value.includes("\\u001b[?1049l")){restoreCallback=callback;return false;}
+ return true;
+};
+`,
+  );
+  return run([], { nodeArgs: ["--import", preload] });
+}
+test("entry-keeps-early-late-error-instead-of-overwriting-with-main-zero", async () => {
+  await expect(entryOutputFailure(0)).resolves.toEqual({
+    code: 1,
+    stdout: "",
+    stderr: "",
+  });
+});
+test("entry-reflects-delayed-output-error-in-final-process-code", async () => {
+  await expect(entryOutputFailure(10)).resolves.toEqual({
+    code: 1,
+    stdout: "",
+    stderr: "",
+  });
+});
+test("entry-keeps-signal-code-after-late-output-error", async () => {
+  await expect(entryOutputFailure(10, true)).resolves.toEqual({
+    code: 143,
+    stdout: "",
+    stderr: "",
+  });
+});
+test("node-collector-rereads-config-with-fixed-startup", async () => {
+  await expect(
+    scenario(`
+const {createNodeTuiDependencies}=await import(new URL("./tui.js",${JSON.stringify(pathToFileURL(cli).href)}));
+const {writeFile}=await import("node:fs/promises");
+const startup={cwd:process.cwd(),osHome:homedir(),env:{...process.env}};let clocks=0;
+const adapter=createNodeTuiDependencies(startup,{now:()=>{clocks++;return 1790748000000;}});
+const first=await adapter.collect(new AbortController().signal);
+startup.env.ORACLE_HOME_DIR=process.cwd()+"/absent-other-home";
+await writeFile(process.env.ORACLE_HOME_DIR+"/config.json",'{browser:{maxConcurrentTabs:4}}');
+const second=await adapter.collect(new AbortController().signal);
+process.stdout.write(JSON.stringify({clocks,first:first.snapshot.browserCapacity,second:second.snapshot.browserCapacity,current:second.snapshot.currentSessions,warnings:second.snapshot.dataWarnings}));
+`),
+  ).resolves.toEqual({
+    clocks: 2,
+    first: { active: 0, maximum: 3, maximumSource: "default", utilization: 0 },
+    second: {
+      active: 0,
+      maximum: 4,
+      maximumSource: "user-config",
+      utilization: 0,
+    },
+    current: [],
+    warnings: [],
+  });
 });

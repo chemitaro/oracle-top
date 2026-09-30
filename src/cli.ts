@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createNodeTuiDependencies, runTui, type TuiInput } from "./tui.js";
 import { parseInterval } from "./config.js";
 import { homedir } from "node:os";
 import type { Writable } from "node:stream";
@@ -15,6 +16,7 @@ export interface CliDependencies {
   stderr?: Writable;
   io?: CollectorFileSystem;
   now?: () => number;
+  onLateExitCode?: (code: number) => void;
   runTui?: (startup: MonitorStartup, intervalMs: number) => Promise<number>;
 }
 const usage = "Invalid arguments. Use oracle-top --help.\n";
@@ -78,10 +80,26 @@ export async function main(
       return 2;
     }
     if (tui) {
-      if (!deps.runTui) throw new Error("TUI runner unavailable");
-      return await deps.runTui(
-        frozenStartup,
-        interval.kind === "interval" ? interval.intervalMs : 2000,
+      const intervalMs =
+        interval.kind === "interval" ? interval.intervalMs : 2000;
+      if (deps.runTui) return await deps.runTui(frozenStartup, intervalMs);
+      return await runTui(
+        createNodeTuiDependencies(
+          { ...frozenStartup, intervalArguments },
+          {
+            terminal: {
+              input: stdin as TuiInput,
+              output: stdout,
+              signals: process,
+            },
+            ...(deps.io ? { io: deps.io } : {}),
+            ...(deps.now ? { now: deps.now } : {}),
+            ...(deps.onLateExitCode
+              ? { onLateExitCode: deps.onLateExitCode }
+              : {}),
+          },
+        ),
+        intervalMs,
       );
     }
     if (snapshot) {
@@ -121,7 +139,21 @@ export async function main(
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  let finalCode: number | undefined;
+  const acceptCode = (code: number) => {
+    if (finalCode !== 130 && finalCode !== 143) {
+      finalCode =
+        code === 130 || code === 143
+          ? code
+          : finalCode === 1 || code === 1
+            ? 1
+            : code;
+    }
+    process.exitCode = finalCode;
+  };
+  acceptCode(await main(process.argv.slice(2), { onLateExitCode: acceptCode }));
+}
 
 function writeOutput(stream: Writable, value: string): Promise<void> {
   return new Promise((resolve, reject) => {
