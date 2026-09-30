@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02はcheckpoint済み、P03の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P04〜P10は未実施で、製品実装は未完了です。
+状態: P02・P03はcheckpoint済み、P04の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P05〜P10は未実施で、製品実装は未完了です。
 
 ## 実装環境と基準
 
@@ -116,14 +116,72 @@ primaryの差分確認で、test setupが既存`.workbench/p03`へ依存して�
 
 この再検証のコマンドは`npm test -- tests/json-reader.test.ts --reporter=verbose`と`npm run check`です。元ログは`.workbench/p03/fresh-checkout.log`、事前不存在・入力hash・exitの証拠は`.workbench/p03/fresh-checkout-proof.txt`へ保持し、コピーした一時checkoutは検証後に除去しました。
 
-P03 checkpoint SHA: 未作成（primaryが差分確認・commitを担当）。集約／collector、配布CLI、実TTY、安全性の全製品証拠、性能値は後続工程です。readerは1readにつき最大1MiB+1のbufferを確保するため、P10で1,000件fixtureのCPU／RSS／p95を実測します。実測なしで性能passとは扱いません。
+P03 checkpoint SHA: `d3b45562a845d9a545cc51d6504534586318b35b`（primaryによる完全差分確認・commit済み）。集約／collector、配布CLI、実TTY、安全性の全製品証拠、性能値は後続工程です。readerは1readにつき最大1MiB+1のbufferを確保するため、P10で1,000件fixtureのCPU／RSS／p95を実測します。実測なしで性能passとは扱いません。
+
+## P04 — 設定と独立したroot/profile解決
+
+開始時は`main`／`d3b45562a845d9a545cc51d6504534586318b35b`／cleanを確認しました。後から追加された`docs/work-plan.md`はprimary所有の変更です。
+
+`resolveMonitorConfig(startup, dependencies?)`は起動時に取得したenv／cwd／OS home／interval引数だけを入力にし、processの環境やcwd、OS homeを内部で再取得しません。呼出しごとに選択homeの`config.json`を既存readerでJSON5として読み直します。profileのrealpath照合は後続collectorの責務です。返却値は解決したhome/sessions/profileパス、interval、session候補がない場合のfallback max/source、閉じた警告だけです。JSON全文・秘密・env全文を返しません。
+
+homeとprofileの既定値は独立です。envとuser configの相対パスをstartup cwd基準で絶対化し、`~`／`$VAR`を展開しません。NULを含むenvパスや不正なstartupパスはusage errorです。user configはown propertyの`browser.manualLoginProfileDir`と`browser.maxConcurrentTabs`だけを読み、不正フィールドは警告して他の正常な値を保持します。project configやprototype由来の値は使用しません。
+
+max fallbackは`ORACLE_BROWSER_MAX_CONCURRENT_TABS`のASCII数字列による正のsafe integer→user configのnumber型正のsafe integer→3です。現在session候補を優先する処理はP06です。`parseInterval`はASCII数字列＋`ms`／`s`／`m`、換算後1,000〜60,000msを受理し、重複・単位なし・符号・小数・指数・Unicode数字・範囲外を拒否します。先頭0だけを理由には拒否しません。
+
+### Focused Red→Green証拠
+
+下表の選択commandは`npm test -- tests/config.test.ts -t '^<テスト名>$' --reporter=verbose`です。毎回対象1件の実行を確認しました。元stdout/stderrは`.workbench/p04/cycles.log`に順序どおり保持しました。最初のRedは実行可能stubの戻り値assertion不一致です。
+
+| テスト名 | Red exit | Green exit |
+|---|---:|---:|
+| defaults-use-os-home | 1 | 0 |
+| home-override-does-not-move-profile | 1 | 0 |
+| profile-env-overrides-default | 1 | 0 |
+| projects-only-whitelisted-json5-config | 1 | 0 |
+| environment-max-overrides-user-config | 1 | 0 |
+| invalid-config-fields-warn-and-use-fallback | 1 | 0 |
+| invalid-environment-max-uses-user-config | 1 | 0 |
+| rejects-nul-environment-path-as-usage-error | 1 | 0 |
+| invalid-config-profile-falls-back | 1 | 0 |
+| invalid-browser-object-warns | 1 | 0 |
+| interval-defaults-to-two-seconds | 1 | 0 |
+| interval-accepts-ascii-units-and-leading-zeroes | 1 | 0 |
+| resolver-uses-selected-interval | 1 | 0 |
+| rejects-invalid-startup-paths | 1 | 0 |
+
+次の8件は先行実装で初回からexit 0だった回帰確認です。Red証拠とは扱いません。同じ選択commandと元ログを保持しています。
+
+```text
+interval-rejects-invalid-syntax-range-and-duplicates
+rereads-user-config-on-each-call
+uses-startup-snapshot-instead-of-live-environment
+paths-use-startup-cwd-without-shell-expansion
+profile-env-overrides-user-config
+preserves-reader-warning-without-derived-field-warnings
+does-not-read-project-config-or-prototype-values
+propagates-abort-without-warning
+```
+
+### 工程の最終検証
+
+| コマンド | exit | 結果・ログ |
+|---|---:|---|
+| `npm test -- tests/config.test.ts --reporter=verbose` | 0 | 22件pass、`.workbench/p04/suite.log` |
+| `npm run typecheck` | 0 | 型検査成功、`.workbench/p04/typecheck.log` |
+| `npm run check` | 0 | format／typecheck／51件test／build成功、`.workbench/p04/check.log` |
+| 隔離cwdで同じ対象suite | 0 | 22件pass、`.workbench/p04/fresh-checkout.log` |
+| `git diff --check` | 0 | 空白エラーなし |
+
+新規checkoutのscratch不存在でもfixtureが成立するよう、setupが`.workbench/p04`を作成します。必要なsource/test/package/configと既存node_modulesのsymlinkだけを一時checkoutへ配置し、`.workbench`／`.workbench/p04`の事前不存在と対象入力hash一致をassertして22件を実行しました。clone／ネットワーク処理はありません。証拠は`.workbench/p04/fresh-checkout-proof.txt`へ保持し、コピーした一時checkoutは検証後に除去しました。
+
+P04 checkpoint SHA: 未作成（primaryが差分確認・commitを担当）。stage・commit・push・branch変更はしていません。P05〜P10と製品受け入れ全体は未検証です。
 
 ## 残工程と再開条件
 
 | 工程 | 状態 | 残る証拠 |
 |---|---|---|
-| P03 | 実装・局所検証済み、checkpoint待ち | 上限付きreadの29テストとfocused履歴 |
-| P04 | 未実施 | home/profile・設定・interval解決 |
+| P03 | checkpoint済み | 上限付きreadの29テストとfocused履歴 |
+| P04 | 実装・局所検証済み、checkpoint待ち | 設定・intervalの22テストとfocused履歴 |
 | P05 | 未実施 | session投影・日時・未知値 |
 | P06 | 未実施 | 走査・集計・capacity・Snapshot不変条件 |
 | P07 | 未実施 | text／JSON描画・Schema検証 |
@@ -131,4 +189,4 @@ P03 checkpoint SHA: 未作成（primaryが差分確認・commitを担当）。�
 | P09 | 未実施 | TUI終了・復元・resize・非重複poll |
 | P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
 
-P04開始条件は、primaryがP03の完全差分を確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。
+P05開始条件は、primaryがP04の完全差分を確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。
