@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P04はcheckpoint済み、P05の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P06〜P10は未実施で、製品実装は未完了です。
+状態: P02〜P05はcheckpoint済み、P06の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P07〜P10は未実施で、製品実装は未完了です。
 
 ## 実装環境と基準
 
@@ -255,9 +255,111 @@ normalize: capacity-accepts-only-positive-safe-numbers
 | `npm run check` | 0 | format／typecheck／全97件test／build成功、`.workbench/p05/check.log` |
 | `git diff --check` | 0 | 空白エラーなし |
 
-fixtureはメモリ内の合成objectだけで、scratch directoryの事前存在に依存しません。実Oracleデータ・秘密値は使っていません。P05 checkpoint SHAは未作成で、primaryが完全差分確認・commitを担当します。この実装担当はstage・commit・push・branch変更をしていません。
+fixtureはメモリ内の合成objectだけで、scratch directoryの事前存在に依存しません。実Oracleデータ・秘密値は使っていません。P05 checkpoint SHAは`1ffb02231edeae1c887222de5fdf1ea588b13346`です（primaryによる完全差分確認・commit済み）。この実装担当はstage・commit・push・branch変更をしていません。
 
 primaryはREADME・説明HTMLを実装中の状態へ同期し、設計書と受け入れ表へ既存根拠どおりの保存位置 `options.browserFollowUps` を明記しました。`python3 scripts/check-planning.py` はexit 0です。使用スキル付属の `/Users/iwasawayuuta/.agents/skills/japanese-explanatory-html/scripts/validate-plantuml-html.mjs docs/overview.html` も最終編集後にexit 0で、SVG描画1/1、クリック・キーボード拡大、倍率境界、focus trap、終了とfocus復元を確認しました。このブラウザ検証は説明資料のもので、未実装の製品TUIの証拠とは扱いません。planning ZIPは準備完了時点の資料として残し、最終納品時に同期します。
+
+## P06 — 採取・窓集計・capacity・Snapshot
+
+開始時は`main`／`1ffb02231edeae1c887222de5fdf1ea588b13346`／cleanを確認しました。作業中の正式仕様冒頭状態の同期はprimary所有の変更として保持しました。固定nowは`2026-09-30T06:00:00.000Z`／`1790748000000`です。
+
+`collectInputs(startup, {io?, signal?, now?})`は設定読込より前にclockを1回だけ取得し、設定→session→選択leaseの順で採取します。成功結果は`{kind:"inputs", nowMs, inputs}`、usage errorとabortは独立unionです。env／cwd／OS homeはcallerのstartup snapshotを使い、設定は各呼出しで読み直します。aggregateへ渡す値は解決済み設定、NormalizedSession配列またはnull、選択profile realpath、active、閉じたwarningだけです。
+
+`collectSessions({homePath, io?, signal?})`はresolved home配下のsessionsをlstatしてから列挙し、直下の通常directoryだけを読むため、8日前runningも採用します。通常fileを無視し、session／metadataのsymlinkを開きません。home自体の指定symlinkは許容しますが、sessionsをreaderの許容rootにせず、resolved home＋`sessions/id/meta.json`で読みます。列挙root／homeと各session directoryのidentityを再確認し、rootの変更は全体null、個別file／directoryの失敗は他recordから隔離します。root欠損／読取不能／拒否symlinkはセッション3領域null、正常emptyは配列と0です。
+
+`collectLeases({profilePath, io?, signal?})`は選択profileだけを解決し、`oracle-tab-leases.json`を既存readerで読みます。v1・own version／leases・全要素非null非array objectを要求し、stale／重複／PIDを検査せず長さを数えます。初回profile／lease欠損は0＋FILE_MISSING、破損や権限不足はnullです。解決後のprofile消失・置換はroot identity確認でnull＋FILE_CHANGED、初回通常fileのprofileはnull＋FILE_NOT_REGULARとします。resolved home／profileをその後のreaderへ渡し、許容root aliasのretargetで列挙元とread元、selected realpathと台帳の所属が食い違わないよう保持します。metadata由来の他profileパスを探索しません。
+
+read-only adapterは既存realpath／lstat／openへreaddirだけを追加しました。現在は順次readで、12session＋config＋leaseの合成adapter実測はpeak 1、open／close 14／14、未close 0です。上限8を満たし、最低並行数は仕様で要求していません。並列化の必要性とCPU／RSS／p95はP10実測待ちです。abort後の新read／probeを止め、進行中readのlate結果を破棄し、handle closeを確認しました。同tick retryやlast-good fallbackはありません。
+
+`buildDashboard(inputs, nowMs)`はI/O／clock取得なしの純粋集約です。currentはpending／runningのみ、elapsed昇順・null末尾・id UTF-16順です。用途ごとに開始／reliability時刻の未来・不明を警告し、有効未来からcreatedへfallbackしません。24H／7Dは両端inclusiveです。reliabilityはcompleted＋partial＋errorを分母にし、cancelledを除外します。初回・follow-upの投影数を保存directory単位、保存model／effort単位で合算し、7D=0の行を出しません。固定model／effort順とwarning tupleのUTF-16順・重複除去を適用します。
+
+max候補は選択logical profileまたは既に解決したselected realpathと一致するcurrentだけです。他profile currentは一覧に残し、PROFILE_DIFFERENTを出します。同profileの有効非未来開始の最新→不明／未来末尾→id順で選択し、採用値と異なる候補にCAPACITY_CONFLICTを出します。候補なしはP04のenv／config／default fallbackです。cwd不明profileのmax9を所属推定せず、env4を採用できます。active4／max3のutilizationは`1.3333333333333333`のままで上限1を設けません。
+
+### Focused Red→Green証拠
+
+選択commandは`npm test -- tests/<suite>.test.ts -t '^<テスト名>$' --reporter=verbose`です。下表29件は各回対象1件、期待値のAssertionErrorによるRed exit 1→Green exit 0を確認しました。最初のRedは実行可能stubの戻り値assertion不一致です。import／compile失敗や0件suiteをRedとして数えていません。元stdout／stderrとcommandは`.workbench/p06/cycles.log`、各exitは`.workbench/p06/exits.txt`へ順序どおり保持しました。
+
+| suite | テスト名 | Red exit | Green exit |
+|---|---|---:|---:|
+| collectors | scans-all-directories-including-old-current | 1 | 0 |
+| collectors | isolates-corrupt-metadata-without-derived-warnings | 1 | 0 |
+| collectors | unreadable-sessions-root-is-unavailable | 1 | 0 |
+| collectors | rejects-sessions-symlink-before-enumeration | 1 | 0 |
+| dashboard | orders-current-by-elapsed-null-last-and-utf16-id | 1 | 0 |
+| dashboard | counts-reliability-with-cancelled-outside-denominator | 1 | 0 |
+| dashboard | counts-inclusive-submission-windows-and-excludes-future | 1 | 0 |
+| dashboard | orders-model-effort-with-fixed-priorities-and-utf16 | 1 | 0 |
+| dashboard | selects-maximum-only-from-same-profile-current | 1 | 0 |
+| dashboard | future-and-unavailable-time-stay-null-with-safe-warnings | 1 | 0 |
+| dashboard | latest-valid-same-profile-max-wins-with-conflict | 1 | 0 |
+| dashboard | deduplicates-and-sorts-warning-tuples-by-utf16 | 1 | 0 |
+| collectors | counts-all-v1-leases-without-pid-or-stale-filtering | 1 | 0 |
+| collectors | rejects-invalid-v1-lease-structure | 1 | 0 |
+| collectors | missing-profile-or-registry-means-zero-stored-leases | 1 | 0 |
+| collectors | ignores-files-and-skips-session-directory-symlinks | 1 | 0 |
+| collectors | isolates-directory-disappearance-and-keeps-other-session | 1 | 0 |
+| collectors | isolates-session-directory-replacement-before-file-read | 1 | 0 |
+| collectors | session-abort-discards-results-and-stops-new-reads | 1 | 0 |
+| collectors | aborted-lease-collection-does-not-probe-profile | 1 | 0 |
+| collectors | abort-during-identity-check-stops-following-probes | 1 | 0 |
+| collectors | lease-read-stays-on-resolved-profile-after-root-alias-retarget | 1 | 0 |
+| collectors | session-reads-stay-on-enumerated-root-after-alias-retarget | 1 | 0 |
+| collectors | observed-profile-disappearance-is-changed-not-initial-missing | 1 | 0 |
+| collectors | profile-replacement-during-read-is-unknown-capacity | 1 | 0 |
+| collectors | profile-permission-failure-stays-unreadable-not-missing | 1 | 0 |
+| collectors | non-directory-profile-is-not-regular-without-reading-registry | 1 | 0 |
+| collectors | observed-home-disappearance-is-changed-not-initial-missing | 1 | 0 |
+| collectors | abort-in-last-session-identity-check-stops-success-and-failure-probes | 1 | 0 |
+
+primaryが元cycles.logを独立照合した結果、次の2件のRedは期待値のassertion不一致ではなく、公開関数から未処理ENOENTが返った実行時I/O例外でした。対象1件failed→passedと現在のGreenは確認していますが、計画の「期待値のassertionでRed」を満たさない手順逸脱のため、上表29件のassertion Red→Green証拠には含めません。
+
+| suite | テスト名 | 公開I/O例外 Red exit | Green exit |
+|---|---|---:|---:|
+| collectors | missing-sessions-root-is-unavailable | 1 | 0 |
+| collectors | isolates-enumeration-directory-replacement | 1 | 0 |
+
+過去の元ログを保持し、証拠を作り直すための実装の逆戻しや人工的なfailure再生成は行いません。今後、I/O例外を安全な公開結果へ変換する振る舞いはPromiseの`resolves`等で期待値assertionを経由するRedとして選択します。最初の実行可能stubのRedがassertion不一致だった事実は維持します。
+
+次の16件は先行最小実装で初回exit 0だった回帰確認です。Red証拠とは扱いません。同じ選択commandと元ログを保持しました。
+
+```text
+dashboard: counts-submitted-completed-followups
+collectors: abort-discards-late-read-and-starts-no-further-files
+dashboard: normal-empty-and-unavailable-have-distinct-session-regions
+dashboard: reliability-uses-independent-inclusive-completion-window
+dashboard: unknown-profile-max-falls-back-without-clamping-utilization
+dashboard: maximum-ties-use-id-and-unknown-times-follow-valid-starts
+collectors: counts-directories-not-conversations-and-keeps-unknown-status-usage
+collectors: captures-clock-before-config-and-rereads-config-each-poll
+collectors: reads-only-selected-profile-and-accepts-its-resolved-alias
+collectors: configured-home-symlink-is-allowed-but-meta-file-symlink-is-skipped
+collectors: all-document-reads-stay-within-eight-and-close
+collectors: lease-reader-failure-is-isolated-without-structure-warnings
+dashboard: valid-future-start-never-falls-back-to-past-created
+dashboard: invalid-followups-preserve-initial-only-and-do-not-count-subsets
+collectors: changed-file-is-not-retried-and-next-poll-adopts-normal-file
+collectors: abort-during-last-directory-stat-failure-starts-no-final-probes
+```
+
+最後のsession directory post-identity awaitでabortした場合の成功／例外両経路を公開adapterで追加検証し、それ以降のprobe／openが0となるRed→Greenを確認しました。同じ停止判定を最初のdirectory stat失敗にも適用し、その経路は初回pass回帰として記録しました。45件時点の旧suite／check成功ログも保持し、修正後の47件／全144件を最終結果とします。
+
+### 工程の最終検証
+
+| コマンド | exit | 結果・ログ |
+|---|---:|---|
+| `npm test -- tests/dashboard.test.ts -t '^counts-submitted-completed-followups$' --reporter=verbose` | 0 | 指定case 1件pass（初回pass回帰）、cycles.log |
+| `npm test -- tests/collectors.test.ts tests/dashboard.test.ts --reporter=verbose` | 0 | P06 47件pass、`.workbench/p06/suite.log` |
+| `npm run typecheck`（初回） | 1 | exactOptionalPropertyTypesでsignal undefined 2件を検出、typecheck.log |
+| `npm run typecheck`（修正後） | 0 | signal存在時だけreader requestへ渡して型検査成功、typecheck.log |
+| `npm run check` | 0 | format／typecheck／全144件test／build成功、`.workbench/p06/check.log` |
+| 隔離cwdで同じP06対象suite | 0 | 47件pass、`.workbench/p06/fresh-checkout.log` |
+| `git diff --check` | 0 | 空白エラーなし |
+
+Workbench ensureはignore済みrootと指定payloadを確認しましたが、最初のログredirect時にはp06親directoryが未作成でした。親を作成してから対象テストを実行し、その環境準備失敗を製品Redに数えていません。fixture setupもrecursive mkdir→mkdtempとし、新規checkoutのscratch不存在で成立します。各fixtureは検証後に削除し、元ログを保持しています。全fixtureは合成で、実Oracleデータ・秘密値を使っていません。
+
+必要なsource／test／package／TypeScript設定と既存node_modulesのsymlinkだけを一時cwdへ配置し、`.workbench`／`.workbench/p06`の事前不存在と対象入力SHA-256一致をassertしてP06 47件を実行しました。clone／ネットワーク処理はありません。証拠は`.workbench/p06/fresh-checkout-proof.txt`、元ログはfresh-checkout.logへ保持し、一時配置は検証後に削除しました。
+
+P06 checkpoint SHAは未作成で、primaryが完全差分・元ログ確認とcommitを担当します。この実装担当はstage・commit・push・branch変更、外部分析、追加agentを実行していません。P07〜P10と製品受け入れ全体は未完了です。
 
 ## 残工程と再開条件
 
@@ -265,11 +367,11 @@ primaryはREADME・説明HTMLを実装中の状態へ同期し、設計書と受
 |---|---|---|
 | P03 | checkpoint済み | 上限付きreadの29テストとfocused履歴 |
 | P04 | checkpoint済み | 設定・intervalの22テストとfocused履歴 |
-| P05 | 実装・局所検証済み、checkpoint待ち | 限定投影・日時の46テストとfocused履歴 |
-| P06 | 未実施 | 走査・集計・capacity・Snapshot不変条件 |
+| P05 | checkpoint済み | 限定投影・日時の46テストとfocused履歴 |
+| P06 | 実装・局所検証済み、checkpoint待ち | 採取・集約の47テストとfocused履歴 |
 | P07 | 未実施 | text／JSON描画・Schema検証 |
 | P08 | 未実施 | built CLI・bin・単発プロセス契約 |
 | P09 | 未実施 | TUI終了・復元・resize・非重複poll |
 | P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
 
-P06開始条件は、primaryがP05の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
+P07開始条件は、primaryがP06の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

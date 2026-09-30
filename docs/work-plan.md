@@ -38,7 +38,7 @@
 - [x] P03 上限付き読み取り
 - [x] P04 設定・root/profile解決
 - [x] P05 セッション・日時投影
-- [ ] P06 走査・集計・capacity
+- [x] P06 走査・集計・capacity
 - [ ] P07 テキスト・JSON表示
 - [ ] P08 CLI
 - [ ] P09 TUI

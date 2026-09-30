@@ -1,10 +1,10 @@
 # 実装計画書
 
-状態: 正式版（2026-09-30採用）。同一会話のStrict相談をローカルOracle根拠へ照合済み。本体は未実装です。
+状態: 正式版（2026-09-30採用）。同一会話のStrict相談をローカルOracle根拠へ照合済み。実装開始時に採用した計画です。現在の工程と検証証拠は[実装報告](implementation-report.md)に記録します。
 
 ## 共通規律
 
-実装担当: **GPT 6.1 Sol / High**。P01は本タスクで完了、P02〜P10は未着手です。初回はreadiness.ready=trueとP01の証拠を読み、P02から順番に開始します。
+実装担当: **GPT 6.1 Sol / High**。準備段階でP01を完了し、readiness.ready=trueとその証拠を確認してP02から順番に実装します。工程の実施状況は[作業計画](../work-plan.md)と[実装報告](implementation-report.md)を参照してください。
 
 各振る舞いについて、型付きの公開境界と実行可能な最小stubを用意し、期待値のassertionでRedを確認してからGreenにします。import失敗、依存不足、テスト0件をRed証拠にしません。一括で全ケースを書いてから実装する進め方は採りません。
 
@@ -28,7 +28,7 @@ python3 scripts/check-planning.py
 
 **Checkpoint：** `docs: formalize oracle-top requirements and implementation contract`
 
-採用・照合・資料検証が完了したためreadinessはreadyです。ツール本体の実装は未開始です。
+P01完了時点では採用・照合・資料検証によりreadinessをreadyとし、ツール本体は未開始でした。現在の実装開始状態はreadiness.jsonのimplementationStartedと実装報告に記録します。
 
 ## P02 — Node／TypeScript基盤
 
