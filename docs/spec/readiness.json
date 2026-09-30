@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "ready": false,
+  "status": "awaiting-strict-consult",
+  "implementationStarted": false,
+  "implementationModel": "gpt-6.1-sol",
+  "implementationReasoning": "high",
+  "consultedConversationId": "6abaed0b-f140-83e8-989e-6a45257cf680",
+  "verifiedInputCommit": "b2ff1f4ab8755145293485dfd1f62d0e14defec2",
+  "consultResult": null,
+  "blockingItem": "Oracle chat-mode-selection / conversation-unresolved before submission",
+  "documents": [
+    "requirements.md",
+    "design.md",
+    "implementation-plan.md",
+    "acceptance.md",
+    "oracle-evidence.md",
+    "conversation-baseline.md"
+  ]
+}

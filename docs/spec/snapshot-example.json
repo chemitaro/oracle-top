@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-30T06:00:00.000Z",
+  "browserCapacity": {
+    "active": 2,
+    "maximum": 3,
+    "utilization": 0.6666666666666666,
+    "maximumSource": "session"
+  },
+  "currentSessions": [
+    {
+      "id": "sample-session",
+      "status": "running",
+      "elapsedMs": 120000,
+      "project": "sample-project",
+      "slug": "sample-session",
+      "model": "gpt-6-astra",
+      "effort": "pro"
+    }
+  ],
+  "reliability24h": {
+    "completed": 24,
+    "partial": 2,
+    "error": 4,
+    "cancelled": 1,
+    "evaluated": 30,
+    "successRate": 0.8
+  },
+  "submittedMessages": [
+    {
+      "model": "gpt-6-astra",
+      "effort": "pro",
+      "submitted24h": 1,
+      "submitted7d": 1
+    }
+  ],
+  "dataWarnings": []
+}

@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="ja" data-plantuml-status="pending" data-plantuml-contract="2">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Oracle Top 要件・設計・実装計画の説明</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #f3f6fb;
+      --surface: #ffffff;
+      --text: #182230;
+      --muted: #536273;
+      --border: #d8e0ea;
+      --accent: #175cd3;
+      --success: #067647;
+      --success-bg: #ecfdf3;
+      --error: #b42318;
+      --error-bg: #fef3f2;
+      --code-bg: #101828;
+      --code-text: #f2f4f7;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      line-height: 1.75;
+    }
+
+    main {
+      width: min(100% - 24px, 960px);
+      margin: 0 auto;
+      padding: max(24px, env(safe-area-inset-top)) 0 max(48px, env(safe-area-inset-bottom));
+    }
+
+    header, section {
+      margin-top: 20px;
+      padding: 22px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 6px 24px rgb(16 24 40 / 8%);
+    }
+
+    header { margin-top: 0; }
+    h1, h2 { line-height: 1.4; }
+    h1 { margin: 0 0 12px; font-size: clamp(1.6rem, 5vw, 2.25rem); }
+    h2 { margin: 0 0 8px; font-size: clamp(1.2rem, 4vw, 1.5rem); }
+    p { margin: 8px 0; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .plantuml-status {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--success-bg);
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    .plantuml-status.error { background: var(--error-bg); color: var(--error); }
+    .plantuml-diagram {
+      position: relative;
+      min-height: 160px;
+      margin-top: 14px;
+      padding: 14px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #ffffff;
+      color: #182230;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .plantuml-diagram[data-zoom-ready="true"] { cursor: zoom-in; }
+    .plantuml-diagram[data-zoom-ready="true"]:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .diagram-zoom-hint {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 5px 9px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--accent);
+      box-shadow: 0 2px 8px rgb(16 24 40 / 14%);
+      font-size: 0.78rem;
+      font-weight: 700;
+      pointer-events: none;
+    }
+
+    .plantuml-diagram svg {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    details { margin-top: 12px; }
+    summary { cursor: pointer; color: var(--accent); font-weight: 700; }
+    pre {
+      margin: 10px 0 0;
+      padding: 14px;
+      overflow-x: auto;
+      border-radius: 10px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-size: 0.8rem;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    table { width:100%; border-collapse:collapse; display:block; overflow-x:auto; }
+    th, td { text-align:left; border-bottom:1px solid var(--border); padding:10px; min-width:120px; vertical-align:top; }
+    dt { font-weight:700; margin-top:12px; }
+    dd { margin-left:0; }
+    .muted { color: var(--muted); }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    body.diagram-zoom-open { overflow: hidden; }
+
+    .diagram-zoom-dialog[hidden] { display: none !important; }
+    .diagram-zoom-dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      background: rgb(3 10 21 / 78%);
+    }
+
+    .diagram-zoom-panel {
+      display: flex;
+      flex-direction: column;
+      width: min(1800px, 100%);
+      height: min(1200px, 100%);
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
+    }
+
+    .diagram-zoom-header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      margin: 0;
+      padding: 6px 8px;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      box-shadow: none;
+    }
+
+    .diagram-zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .diagram-zoom-controls button {
+      display: inline-grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .diagram-zoom-controls button svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentcolor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .diagram-zoom-controls button:hover,
+    .diagram-zoom-controls button:focus-visible {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .diagram-zoom-controls button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .diagram-zoom-level {
+      min-width: 3.5rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+
+    #diagram-zoom-reset {
+      width: auto;
+      min-width: 58px;
+      padding-inline: 8px;
+    }
+
+    .diagram-zoom-viewport {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      background: #ffffff;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .diagram-zoom-canvas {
+      width: max-content;
+      min-width: 100%;
+      min-height: 100%;
+      padding: 24px;
+    }
+
+    .diagram-zoom-canvas svg {
+      display: block;
+      max-width: none;
+      height: auto;
+      margin: 0;
+    }
+
+    @media (max-width: 640px) {
+      .diagram-zoom-dialog { padding: 0; }
+      .diagram-zoom-panel { border-radius: 0; }
+      .diagram-zoom-canvas { padding: 16px; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #0c111d;
+        --surface: #161b26;
+        --text: #f5f7fa;
+        --muted: #b9c2cf;
+        --border: #333b48;
+        --success-bg: #053321;
+        --error-bg: #55160c;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="muted">Oracle Top / 相談前の下書き / 2026年9月30日</p>
+      <h1>Oracleの保存状態を、ひとつの画面で確認します</h1>
+      <p>現在のセッション、ブラウザの使用枠、最近の成功率、モデルごとの送信回数を表示するCLIツールを作ります。Oracleが持つ記録を読み、2秒ごとに同じ画面を更新します。</p>
+      <p><strong>この資料は仕様の説明です。ツール本体の実装は、正式な要件・設計・計画が揃ってからGPT 6.1 Sol／Highで開始します。</strong></p>
+      <div id="plantuml-status" class="plantuml-status" role="status" aria-live="polite">図を読み込んでいます。</div>
+    </header>
+    <section>
+      <h2>何を確認できるようにするか</h2>
+      <p>Oracleを多く使うと、どのタスクが進行中か、最近失敗が増えているか、どのモデルへ何回送ったかをひと目で確認したくなります。このツールは、そのための読み取り専用の一覧です。</p>
+      <table><thead><tr><th>画面の領域</th><th>確認できること</th><th>値の意味</th></tr></thead><tbody>
+      <tr><td>現在のセッション</td><td>状態、経過時間、プロジェクト、タスク、モデル、推論レベル</td><td>Oracleにpendingまたはrunningと保存されているもの</td></tr>
+      <tr><td>ブラウザスロット</td><td>使用数／上限と比率</td><td>選択したプロファイルの台帳に残る使用記録</td></tr>
+      <tr><td>直近24時間の信頼性</td><td>completed・partial・error・cancelledの件数と成功率</td><td>保存された結果の集計</td></tr>
+      <tr><td>モデル別の送信回数</td><td>モデルと推論レベルの組ごとに24時間・7日間</td><td>Oracleが送信操作へ到達した回数の目安</td></tr>
+      </tbody></table>
+    </section>
+    <section>
+      <h2>完成する画面の例</h2>
+      <p>次の値は画面の読み方を説明するための仮データです。現在のOracleの実数ではありません。</p>
+      <pre aria-label="CLIダッシュボードの画面例">ORACLE TOP                 2026-09-30 15:00:00 JST   refresh 2s
+Browser slots 2 / 3  66.7%                    current sessions 2
+
+CURRENT SESSIONS
+STATUS   ELAPSED   PROJECT     SESSION / SLUG    MODEL         EFFORT
+running  00:02:18  sample-app  domain-review     gpt-6-astra   pro
+running  00:17:42  spec-dock   lifecycle-review  gpt-5.6-sol   pro
+
+RELIABILITY — ROLLING 24 HOURS
+completed 24  partial 2  error 4  cancelled 1  evaluated 30
+success 80.0%
+
+SUBMITTED MESSAGES BY MODEL / EFFORT
+MODEL          EFFORT       24H   7D
+gpt-6-astra    pro           24   74
+gpt-5.6-sol    pro          118  632
+gpt-5.6-sol    extra-high    17  104
+
+Oracle-only counts. Direct ChatGPT usage is not included.</pre>
+      <p>新しく始まったタスクを上に、長く動いているタスクを下に並べます。モデル表はgpt-6-astra、gpt-5.6-sol、その他の文字列順です。件数が変わっても順位は揺れません。</p>
+    </section>
+    <section>
+      <h2>最初に知っておく用語</h2>
+      <dl><dt>セッション</dt><dd>Oracleが一回の実行について保存した記録です。同じChatGPT会話へ続けて送っても、別のOracleセッションになることがあります。</dd>
+      <dt>スロット／lease</dt><dd>Oracleがブラウザ使用枠を確保したときの台帳記録です。セッション件数と同じとは限りません。</dd>
+      <dt>推論レベル／effort</dt><dd>Oracleが保存した推論の指定値です。実際のChatGPT画面や利用枠を証明する値ではありません。</dd>
+      <dt>ローリング期間</dt><dd>今から24時間前、または7日前までです。「今日の0時から」ではありません。</dd>
+      <dt>Snapshot</dt><dd>一回の読み取りで作る共通データです。画面・テキスト・JSONはこれを使って表示します。</dd></dl>
+    </section>
+    <section>
+      <h2>成功率と送信回数は、別々の数字です</h2>
+      <p>成功率は、Oracleが結果を保存できたセッションの割合です。送信回数は、その後失敗しても送信操作に到達した分を含みます。</p>
+      <pre>成功率 = completed ÷ (completed + partial + error)
+例：24 ÷ (24 + 2 + 4) = 80.0%</pre>
+      <p>cancelledは件数を表示しますが、成功率の分母には含めません。評価対象が0件なら、0%ではなくN/Aを表示します。成功率と同じ内容を反対から示す失敗率は表示しません。</p>
+      <p>送信回数は、保存されたpromptSubmittedがtrueなら初回を1件として数えます。ユーザーターンを確認するhashがなくても数えます。同じ実行内の追加送信は、完了していればその予定件数も加えます。途中で失敗した場合は初回の1件だけです。</p>
+      <p><strong>この回数は、ChatGPTアカウントの正確な利用数や残量ではありません。</strong>直接ChatGPTを使った分は含みません。送信時刻がないため開始時刻で代替し、途中の追加送信は少なく数える場合があります。Oracleが古い履歴を削除すると、7日間の数字も少なくなります。</p>
+    </section>
+    <section>
+      <h2>記録を読んでから表示するまで</h2>
+      <p>端末の画面だけを更新します。監視対象のファイル、Oracleの設定、Chromeのタブへ変更を加えません。独自の履歴も保存しません。</p>
+      <script type="text/plain" class="plantuml-source" id="source-system-overview" data-target="diagram-system-overview">
+@startuml
+title 保存記録から画面を作る流れ
+left to right direction
+rectangle "Oracleの保存記録\nmeta.json・設定・lease台帳" as Records
+component "読み取り\n不正な一件を隔離" as Reader
+component "共通データ\n現在一覧と期間集計" as Snapshot
+component "表示\nTUI・テキスト・JSON" as View
+Records --> Reader : 記録を読む
+Reader --> Snapshot : 必要な項目を渡す
+Snapshot --> View : 同じ結果を表示
+@enduml
+      </script>
+      <div id="diagram-system-overview" class="plantuml-diagram">構成図を描画しています。</div>
+      <details><summary>図の編集用ソースを確認する</summary><pre data-source-copy="source-system-overview"></pre></details>
+      <p>設定と記録の読み取り、値の検査、集計、表示を分けることで、一つずつ確認できます。2秒を超える読み取りがあっても、次の読み取りを重ねません。</p>
+    </section>
+    <section>
+      <h2>読めない場合、画面に収まらない場合</h2>
+      <p>壊れたJSONが一件あっても、読めるセッションは表示します。警告により、集計が欠けている可能性を伝えます。台帳を読めないときは「0件」と断定せずN/Aを表示します。</p>
+      <p>幅が狭い場合はプロジェクト名とタスク名を先に短縮します。重要な列さえ収まらない場合は、端末を広げるかsnapshotを使うように案内します。高さが足りない場合は、省略した行数を表示します。JSONと単発テキストでは全件を確認できます。</p>
+      <p>終了するときは、カーソルやキー入力の設定を元に戻します。Oracleファイルを修復したり、残ったスロットを削除したりする処理はありません。</p>
+    </section>
+    <section>
+      <h2>使い方と設定</h2>
+      <pre>oracle-top
+oracle-top --interval 2s
+oracle-top snapshot
+oracle-top snapshot --json</pre>
+      <p>TUIはqまたはCtrl-Cで終了します。画面の切り替え、詳細ログ、通知は作りません。パイプやファイルへの出力にはsnapshotを使います。</p>
+      <p>セッションの保存先とブラウザのプロファイルは別の設定です。ORACLE_HOME_DIRだけを変えても、既定のブラウザプロファイルは移りません。観測する一つのプロファイルを選び、その台帳を読みます。</p>
+      <p>このツールが表示するrunningは、Oracleの保存値です。実際のChatGPTで回答が終わっていても、Oracleがrunningのままならそのまま表示します。</p>
+    </section>
+    <section>
+      <h2>一歩ずつ実装する計画</h2>
+      <ol><li>開発基盤とチェックコマンドを揃えます。</li><li>設定と保存先の解決を検証します。</li><li>メタデータを必要な項目へ変換します。</li><li>ファイルの読み取りと、一件ずつのエラー隔離を作ります。</li><li>現在一覧、成功率、送信回数、スロットを共通データにまとめます。</li><li>テキスト表示と端末幅への対応を作ります。</li><li>単発テキスト・JSONのCLIを作ります。</li><li>2秒更新と終了時の端末復元を作ります。</li><li>隔離したテスト用記録で、性能・読み取り専用・導入手順まで確認します。</li></ol>
+      <p>各段階は、期待する振る舞いを一つテストし、失敗を確認してから最小の実装を加えます。確認が通った単位をコミットして、次へ進みます。実装担当はGPT 6.1 Sol／Highです。</p>
+    </section>
+    <section>
+      <h2>何をもって完成とするか</h2>
+      <p>全要件に対応するテスト、型チェック、ビルド、CLIとTUIの動作確認が通り、Oracleの記録に変更がないことを確認します。破損データ、期間境界、0件、追加送信、日本語の文字幅、終了操作も確認します。</p>
+      <p>実装前の最終版にするMarkdownは要件定義書・設計書・実装計画書・受け入れ検証表です。ZIPからまとめて受け取れます。仕様書の準備完了と、ツールの実装完了は分けて記録します。</p>
+      <p class="muted">図は固定バージョンの描画ライブラリをCDNから読み、ブラウザ内で描画します。初回表示にはインターネット接続が必要です。図のソースは外部の描画サーバーへ送信しません。</p>
+    </section>
+  </main>
+
+  <div id="diagram-zoom-dialog" class="diagram-zoom-dialog" hidden>
+    <section class="diagram-zoom-panel"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="diagram-zoom-title">
+      <h2 id="diagram-zoom-title" class="visually-hidden">図を拡大表示</h2>
+      <header class="diagram-zoom-header">
+        <div class="diagram-zoom-controls" aria-label="図の拡大率を操作する">
+          <button type="button" id="diagram-zoom-out" aria-label="図を縮小する" title="縮小">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+          </button>
+          <button type="button" id="diagram-zoom-reset" aria-label="100%に戻す" title="100%に戻す">
+            <span id="diagram-zoom-level" class="diagram-zoom-level" aria-live="polite">100%</span>
+          </button>
+          <button type="button" id="diagram-zoom-in" aria-label="図を拡大する" title="拡大">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+          <button type="button" id="diagram-zoom-close" aria-label="拡大表示を閉じる" title="閉じる">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </button>
+        </div>
+      </header>
+      <div id="diagram-zoom-viewport" class="diagram-zoom-viewport" tabindex="0">
+        <div id="diagram-zoom-canvas" class="diagram-zoom-canvas"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      const sources = [...document.querySelectorAll(".plantuml-source")];
+      const status = document.getElementById("plantuml-status");
+
+      window.__plantumlDocumentState = {
+        expected: sources.length,
+        rendered: 0,
+        errors: [],
+        completed: false
+      };
+
+      window.__plantumlFail = message => {
+        const state = window.__plantumlDocumentState;
+        state.errors.push(String(message));
+        state.completed = true;
+        document.documentElement.dataset.plantumlStatus = "error";
+        status.className = "plantuml-status error";
+        status.textContent = `図の描画に失敗しました: ${message}`;
+      };
+
+      for (const output of document.querySelectorAll("[data-source-copy]")) {
+        const source = document.getElementById(output.dataset.sourceCopy);
+        if (source) output.textContent = source.textContent.trim();
+      }
+
+      document.documentElement.dataset.plantumlStatus = "running";
+    })();
+  </script>
+
+  <script
+    src="https://unpkg.com/@plantuml/core@1.2026.6/viz-global.js"
+    onerror="window.__plantumlFail('viz-global.jsを読み込めませんでした。')"></script>
+
+  <script type="module">
+    const state = window.__plantumlDocumentState;
+    const status = document.getElementById("plantuml-status");
+    const zoomDialog = document.getElementById("diagram-zoom-dialog");
+    const zoomTitle = document.getElementById("diagram-zoom-title");
+    const zoomViewport = document.getElementById("diagram-zoom-viewport");
+    const zoomCanvas = document.getElementById("diagram-zoom-canvas");
+    const zoomLevelOutput = document.getElementById("diagram-zoom-level");
+    const zoomOutButton = document.getElementById("diagram-zoom-out");
+    const zoomInButton = document.getElementById("diagram-zoom-in");
+    const zoomResetButton = document.getElementById("diagram-zoom-reset");
+    const zoomCloseButton = document.getElementById("diagram-zoom-close");
+    let zoomLevel = 1;
+    let zoomBaseWidth = 0;
+    let zoomedSvg = null;
+    let zoomReturnFocus = null;
+
+    const diagramTitle = sourceElement => {
+      const titleLine = sourceElement.textContent.match(/^\s*title\s+(.+)$/m);
+      return titleLine?.[1]?.trim() || "図を拡大表示";
+    };
+
+    const applyDiagramZoom = () => {
+      if (!zoomedSvg || zoomBaseWidth <= 0) return;
+      zoomedSvg.style.width = `${Math.round(zoomBaseWidth * zoomLevel)}px`;
+      zoomedSvg.style.height = "auto";
+      zoomLevelOutput.value = `${Math.round(zoomLevel * 100)}%`;
+      zoomLevelOutput.textContent = zoomLevelOutput.value;
+      zoomResetButton.setAttribute("aria-label", `100%に戻す（現在${zoomLevelOutput.value}）`);
+      zoomOutButton.disabled = zoomLevel <= 0.5;
+      zoomInButton.disabled = zoomLevel >= 3;
+    };
+
+    const setDiagramZoom = nextLevel => {
+      zoomLevel = Math.min(3, Math.max(0.5, nextLevel));
+      applyDiagramZoom();
+    };
+
+    const closeDiagramZoom = () => {
+      if (zoomDialog.hidden) return;
+      zoomDialog.hidden = true;
+      document.body.classList.remove("diagram-zoom-open");
+      zoomCanvas.replaceChildren();
+      zoomedSvg = null;
+      zoomBaseWidth = 0;
+      zoomReturnFocus?.focus();
+      zoomReturnFocus = null;
+    };
+
+    const openDiagramZoom = (target, sourceElement) => {
+      const sourceSvg = target.querySelector("svg");
+      if (!sourceSvg) return;
+
+      zoomReturnFocus = target;
+      zoomedSvg = sourceSvg.cloneNode(true);
+      zoomedSvg.removeAttribute("height");
+      zoomedSvg.style.maxWidth = "none";
+      const viewBoxWidth = zoomedSvg.viewBox?.baseVal?.width || 0;
+      const declaredWidth = Number.parseFloat(zoomedSvg.getAttribute("width")) || 0;
+      zoomBaseWidth = Math.max(viewBoxWidth, declaredWidth, sourceSvg.getBoundingClientRect().width);
+      zoomLevel = 1;
+      zoomTitle.textContent = diagramTitle(sourceElement);
+      zoomCanvas.replaceChildren(zoomedSvg);
+      zoomDialog.hidden = false;
+      document.body.classList.add("diagram-zoom-open");
+      zoomViewport.scrollTo({ top: 0, left: 0 });
+      applyDiagramZoom();
+      zoomCloseButton.focus();
+    };
+
+    const prepareDiagramZoom = (target, sourceElement) => {
+      target.dataset.zoomReady = "true";
+      target.tabIndex = 0;
+      target.setAttribute("role", "button");
+      target.setAttribute("aria-label", `${diagramTitle(sourceElement)}を拡大表示する`);
+      const hint = document.createElement("span");
+      hint.className = "diagram-zoom-hint";
+      hint.textContent = "クリックして拡大";
+      hint.setAttribute("aria-hidden", "true");
+      target.append(hint);
+      target.addEventListener("click", () => openDiagramZoom(target, sourceElement));
+      target.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openDiagramZoom(target, sourceElement);
+        }
+      });
+    };
+
+    const focusableZoomElements = () => [...zoomDialog.querySelectorAll(
+      'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    )].filter(element => !element.hidden && element.getClientRects().length > 0);
+
+    zoomOutButton.addEventListener("click", () => setDiagramZoom(zoomLevel - 0.25));
+    zoomInButton.addEventListener("click", () => setDiagramZoom(zoomLevel + 0.25));
+    zoomResetButton.addEventListener("click", () => setDiagramZoom(1));
+    zoomCloseButton.addEventListener("click", closeDiagramZoom);
+    zoomDialog.addEventListener("click", event => {
+      if (event.target === zoomDialog) closeDiagramZoom();
+    });
+    document.addEventListener("keydown", event => {
+      if (zoomDialog.hidden) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDiagramZoom();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = focusableZoomElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && (document.activeElement === first || !zoomDialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !zoomDialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    try {
+      const { renderToString } = await import(
+        "https://unpkg.com/@plantuml/core@1.2026.6/plantuml.js"
+      );
+
+      const renderDiagram = lines => new Promise((resolve, reject) => {
+        renderToString(
+          lines,
+          svg => resolve(svg),
+          message => reject(new Error(message))
+        );
+      });
+
+      const normalizeDiagnosticText = value => String(value ?? "").replace(/\s+/g, " ").trim();
+
+      const inspectRenderedSvg = svgMarkup => {
+        const parsed = new DOMParser().parseFromString(svgMarkup, "image/svg+xml");
+        const root = parsed.documentElement;
+        if (!root || root.localName.toLowerCase() === "parsererror" || parsed.querySelector("parsererror")) {
+          throw new Error("PlantUMLが不正なSVGを返しました。");
+        }
+        if (root.localName.toLowerCase() !== "svg") {
+          throw new Error("PlantUMLの描画結果がSVGではありません。");
+        }
+
+        const fullText = normalizeDiagnosticText(root.textContent);
+        const diagramType = root.getAttribute("data-diagram-type")?.toLowerCase() ?? "";
+        const hasKnownErrorText = /Syntax Error\?|An error has occurred/i.test(fullText);
+        const hasDiagnosticStructure = /PlantUML version\b/i.test(fullText)
+          && /\[From [^\]]*\(line \d+\)\s*\]/i.test(fullText)
+          && /@startuml/i.test(fullText);
+
+        if (diagramType === "error" || hasKnownErrorText || hasDiagnosticStructure) {
+          const diagnosticLines = [...root.querySelectorAll("text")]
+            .filter(element => {
+              const presentation = [
+                element.getAttribute("fill"),
+                element.getAttribute("style"),
+                element.getAttribute("text-decoration")
+              ].filter(Boolean).join(" ").toLowerCase().replace(/\s+/g, "");
+              return /(?:fill:)?(?:#ff0000|#f00|red|rgb\(255,0,0\))/.test(presentation)
+                || presentation.includes("wavy");
+            })
+            .map(element => normalizeDiagnosticText(element.textContent))
+            .filter(Boolean);
+          const reason = [...new Set(diagnosticLines)].join(" / ").slice(0, 500)
+            || (hasKnownErrorText
+              ? fullText.match(/Syntax Error\?|An error has occurred/i)?.[0]
+              : "PlantUMLの診断画面が返されました。");
+          throw new Error(`PlantUMLの診断SVGが検出されました: ${reason}`);
+        }
+
+        return root;
+      };
+
+      for (const sourceElement of document.querySelectorAll(".plantuml-source")) {
+        const target = document.getElementById(sourceElement.dataset.target);
+        if (!target) {
+          state.errors.push(`${sourceElement.id}: 描画先がありません。`);
+          continue;
+        }
+
+        try {
+          const lines = sourceElement.textContent.trim().split(/\r?\n/);
+          const svgMarkup = await renderDiagram(lines);
+          const svg = inspectRenderedSvg(svgMarkup);
+          target.replaceChildren(document.importNode(svg, true));
+          prepareDiagramZoom(target, sourceElement);
+          target.dataset.plantumlStatus = "success";
+          state.rendered += 1;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          state.errors.push(`${sourceElement.id}: ${message}`);
+          target.dataset.plantumlStatus = "error";
+          target.textContent = `この図の描画に失敗しました: ${message}`;
+        }
+      }
+
+      state.completed = true;
+      if (state.rendered === state.expected && state.errors.length === 0) {
+        document.documentElement.dataset.plantumlStatus = "success";
+        status.textContent = `図を${state.rendered}件すべて描画できました。`;
+      } else {
+        document.documentElement.dataset.plantumlStatus = "error";
+        status.className = "plantuml-status error";
+        status.textContent = `図を${state.rendered}件描画し、${state.errors.length}件のエラーが発生しました。`;
+      }
+    } catch (error) {
+      window.__plantumlFail(error instanceof Error ? error.message : String(error));
+    }
+  </script>
+</body>
+</html>

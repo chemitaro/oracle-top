@@ -12,8 +12,17 @@
 - [x] Oracle実装と会話の仮定を照合して根拠資料を作成
 - [ ] clean HEAD / GitHub upstream SHA一致を確認し、同じChatGPT会話で chatgpt-use-strict 設計相談
 - [ ] 回答をローカル証拠へ照合し、正式R/D/Pと受け入れ条件・実装ゲートを具体化
-- [ ] 説明HTML作成、ブラウザ検証、ZIP作成と内容照合
+- [x] 相談前の具体的下書き（32要件・9実装工程・受け入れ検証表・JSON契約）を作成
+- [x] 下書きの説明HTML作成、ブラウザ検証、ZIP作成と内容照合
 - [ ] 最終成果物コミット・push、実装開始可能性を検証、ゴール完了
+
+## 現在の状態
+
+相談入力コミットb2ff1f4でclean状態とGitHub SHA一致を確認した。Oracle実行とユーザー指示による再実行は、いずれもchat-mode-selection / conversation-unresolvedで送信前に終了した。Strict相談の回答は取得できていない。
+
+下書きを検証・パッケージ化してチェックポイントとして保存する。正式化とready=trueは同じ会話でのStrict相談を完了してから行う。ゴールは未達であり、ツール本体の実装は開始しない。
+
+検証の範囲と再開条件は[検証記録](spec/verification.md)および[相談記録](spec/consultation.md)に記載する。
 
 ## 制約
 

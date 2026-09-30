@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Oracle Top DashboardSnapshot draft v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "browserCapacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maximum": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "utilization": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maximumSource": {
+          "enum": [
+            "session",
+            "environment",
+            "user-config",
+            "default"
+          ]
+        }
+      },
+      "required": [
+        "active",
+        "maximum",
+        "utilization",
+        "maximumSource"
+      ]
+    },
+    "currentSessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running"
+            ]
+          },
+          "elapsedMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "project": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "elapsedMs",
+          "project",
+          "slug",
+          "model",
+          "effort"
+        ]
+      }
+    },
+    "reliability24h": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partial": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cancelled": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evaluated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "successRate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "completed",
+        "partial",
+        "error",
+        "cancelled",
+        "evaluated",
+        "successRate"
+      ]
+    },
+    "submittedMessages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string"
+          },
+          "submitted24h": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "submitted7d": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "model",
+          "effort",
+          "submitted24h",
+          "submitted7d"
+        ]
+      }
+    },
+    "dataWarnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "sessions",
+              "session",
+              "config",
+              "leases"
+            ]
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "source"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "browserCapacity",
+    "currentSessions",
+    "reliability24h",
+    "submittedMessages",
+    "dataWarnings"
+  ]
+}
