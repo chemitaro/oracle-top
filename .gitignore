@@ -1,0 +1,12 @@
+# Local agent scratch and Oracle state
+.workbench/
+.oracle/
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+.pnpm-store/
+.DS_Store
+*.log
