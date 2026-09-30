@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P05はcheckpoint済み、P06の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P07〜P10は未実施で、製品実装は未完了です。
+状態: P02〜P06はcheckpoint済み、P07の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P08〜P10は未実施で、製品実装は未完了です。
 
 ## 実装環境と基準
 
@@ -359,7 +359,70 @@ Workbench ensureはignore済みrootと指定payloadを確認しましたが、�
 
 必要なsource／test／package／TypeScript設定と既存node_modulesのsymlinkだけを一時cwdへ配置し、`.workbench`／`.workbench/p06`の事前不存在と対象入力SHA-256一致をassertしてP06 47件を実行しました。clone／ネットワーク処理はありません。証拠は`.workbench/p06/fresh-checkout-proof.txt`、元ログはfresh-checkout.logへ保持し、一時配置は検証後に削除しました。
 
-P06 checkpoint SHAは未作成で、primaryが完全差分・元ログ確認とcommitを担当します。この実装担当はstage・commit・push・branch変更、外部分析、追加agentを実行していません。P07〜P10と製品受け入れ全体は未完了です。
+P06 checkpoint SHAは`7beba24daa2ea94b819ab32d84385cceb35ef507`です（primaryによる完全差分・元ログ確認・commit済み）。この実装担当はstage・commit・push・branch変更、外部分析、追加agentを実行していません。P07〜P10と製品受け入れ全体は未完了です。
+
+## P07 — 共通テキスト・安全なJSON・Schema検証
+
+開始時は`main`／`7beba24daa2ea94b819ab32d84385cceb35ef507`／cleanを確認しました。変更は`src/render/{text,width,json}.ts`、`tests/{render,schema}.test.ts`と本reportです。極小viewportの正式仕様補足はprimary所有の変更として保持しました。Workbench ensure後にp07親directoryを作成・実在確認してからログを書きました。
+
+`renderText(snapshot, {columns, rows}?)`は同じSnapshotから全件textまたはviewport textを生成します。currentはSTATUS／ELAPSED／PROJECT／SESSION / SLUG／MODEL／EFFORTの6列です。elapsedの時間は24時間で巻き戻さず、nullをN/A、正常emptyをplaceholderで区別します。比率は1桁の百分率とし、active4／max3は133.3%です。数値や保存model／effortを独自の状態・quotaへ変換しません。5領域とOracle-only／direct ChatGPT除外／requested値／selected profile・homeの注記を表示し、警告時にValues from readable records onlyを付けます。表示clockはgeneratedAtのOS local時刻＋offset、JSONはUTCの保存値です。Snapshotにないrefresh contextは追加していません。
+
+幅はIntl.Segmenterと採用版string-widthでgraphemeのセル数を計測します。全Snapshotの保護列（currentのSTATUS／ELAPSED／MODEL／EFFORT、usageの全4列）から、project／slug最小1セルと区切りを含む必要幅を決定します。物理下限80列・最後1列予約を守り、project／slugとその見出しを先に短縮します。保護名や数値を黙って切りません。必要幅未満は通常表を出さずnarrow message、メッセージが入らない場合は!です。予約後の描画可能列・行が0の0／1columns・rowsでは本文空です（primaryが既存予約ルールから導いた境界を正式仕様へ補足）。
+
+固定領域を実際に組み立て、巨大なsafe integerも数値を保持して行を折り分けてからFを数えます。最後1行を予約し、残bodyをcurrent／usage半分、奇数はcurrent、余りは他方へ再配分します。空表にも1行を使い、N>BではB−1件＋残件数行です。固定＋両表1行が入らなければshort messageです。指定fixtureの120×24、固定F15・body各4行ではcurrent3件＋7 more、usage3件＋6 more、全23描画行です。viewport warning要約は最大2行、full textは全行・全警告を返します。Snapshotを変更しません。
+
+テキストはC0／C1／DEL／CRLF／TAB／Unicode改行／指定BidiControlを空白へ置換します。`serializeJson(snapshot)`はJSON.stringify後にC1／DEL／BidiControl／U2028・U2029をUnicode escapeし、生制御文字を出さずJSON.parse後の全値とwarning集合を保持します。TUIの省略はJSONへ反映しません。
+
+既存正式Schema・正式例は意味変更や同期修正を必要とせず、Ajv2020 strict実validatorで確認しました。date-time formatは既存parseIsoTimestamp、UTC patternは正式Schemaを使い、ajv-formatsやruntime依存を追加していません。extra property、required欠損、未知warning／不正source・sessionId union、負elapsed・float件数・unsafe integer・max0・7D0行、UTC／暦不正、3領域の混在null、不正な率nullをrejectします。model／effortの自由な非空保存文字列、0001年、有効な3領域allnullをacceptします。Schemaだけで算術・一意性・順序を保証するとは扱わず、実際のbuildDashboard公開結果のliteralを検証してからserialize→実validatorへ通しました。
+
+### Focused Red→Green証拠
+
+選択commandは`npm test -- tests/<suite>.test.ts -t '^<テスト名>$' --reporter=verbose`です。下表10件は対象各1件、元ログのAssertionErrorを確認したRed exit 1→Green exit 0です。最初は実行可能stubの戻り値assertion不一致です。例外、import／compile失敗や0件suiteをRedに数えていません。元stdout／stderr・commandは`.workbench/p07/cycles.log`、各exitは`.workbench/p07/exits.txt`に保持しました。
+
+| suite | テスト名 | assertion Red exit | Green exit |
+|---|---|---:|---:|
+| render | renders-exactly-six-current-columns | 1 | 0 |
+| render | distinguishes-unavailable-from-zero-and-empty | 1 | 0 |
+| render | measures-and-truncates-whole-graphemes-in-cells | 1 | 0 |
+| render | shrinks-project-and-slug-before-protected-columns | 1 | 0 |
+| render | renders-five-regions-and-provenance-notes | 1 | 0 |
+| render | reports-omitted-rows-per-section | 1 | 0 |
+| render | neutralizes-text-controls-without-changing-snapshot | 1 | 0 |
+| render | serializes-safe-json-with-full-value-round-trip | 1 | 0 |
+| render | wraps-fixed-lines-without-hiding-safe-integer-values | 1 | 0 |
+| render | shows-generated-clock-in-os-local-time-with-offset | 1 | 0 |
+
+次の13件は初回exit 0だった回帰確認です。既存正式Schemaが最初から満たしていたnegative caseもこの区分にし、人工的なRedを生成していません。選択commandと元ログを保持しました。
+
+```text
+schema: validates-canonical-snapshot-example
+schema: rejects-extra-properties-at-every-output-object
+schema: rejects-invalid-numeric-boundaries-and-null-ratios
+schema: requires-three-session-regions-to-be-all-null-or-all-normal
+schema: rejects-unknown-warning-code-source-and-invalid-session-id-union
+schema: requires-strict-utc-generated-time-and-nonempty-free-saved-names
+schema: validates-built-dashboard-with-literal-algebra-unique-rows-and-order
+render: computes-required-width-from-protected-values-before-omission
+render: uses-size-messages-and-reserves-last-row-and-column
+render: gives-odd-body-row-to-current-and-redistributes-unused-space
+render: limits-tui-warning-summary-to-two-lines-and-full-text-keeps-all
+render: keeps-hours-above-day-and-formats-unclamped-percent-to-one-decimal
+schema: requires-output-fields-in-root-and-nested-records
+```
+
+### 工程の最終検証
+
+| コマンド | exit | 結果・ログ |
+|---|---:|---|
+| `npm test -- tests/render.test.ts -t '^reports-omitted-rows-per-section$' --reporter=verbose`（最終選択） | 0 | 指定case 1件pass、cycles.log |
+| `npm test -- tests/render.test.ts tests/schema.test.ts --reporter=verbose` | 0 | P07 23件pass（render15／schema8）、`.workbench/p07/suite.log` |
+| `npm run typecheck` | 0 | 型検査成功、`.workbench/p07/typecheck.log` |
+| `npm run check` | 0 | format／typecheck／全167件test／build成功、`.workbench/p07/check.log` |
+| `git diff --check` | 0 | 空白エラーなし |
+
+P07の最終検証に新たな警告・失敗はありません。fixtureはメモリ内の合成Snapshotと正式な合成例だけで、実Oracleデータ・秘密値を使っていません。元ログを保持し、除去すべき一時fixture配置はありません。P07 checkpoint SHAは未作成で、primaryが完全差分・元ログ確認とcommitを担当します。この実装担当はGit書込み、外部分析、追加agentを実行していません。
+
+配布CLI・default TTYの実動作・PTY／実TTY終了とresize・採取から描画まで含めたCPU／RSS／p95は未検証です。P10実測で改善の必要性を判断し、予備計測を正式性能passとして扱いません。P08〜P10と製品受け入れ全体は未完了です。
 
 ## 残工程と再開条件
 
@@ -368,10 +431,10 @@ P06 checkpoint SHAは未作成で、primaryが完全差分・元ログ確認とc
 | P03 | checkpoint済み | 上限付きreadの29テストとfocused履歴 |
 | P04 | checkpoint済み | 設定・intervalの22テストとfocused履歴 |
 | P05 | checkpoint済み | 限定投影・日時の46テストとfocused履歴 |
-| P06 | 実装・局所検証済み、checkpoint待ち | 採取・集約の47テストとfocused履歴 |
-| P07 | 未実施 | text／JSON描画・Schema検証 |
+| P06 | checkpoint済み | 採取・集約の47テストとfocused履歴 |
+| P07 | 実装・局所検証済み、checkpoint待ち | 描画・Schemaの23テストとfocused履歴 |
 | P08 | 未実施 | built CLI・bin・単発プロセス契約 |
 | P09 | 未実施 | TUI終了・復元・resize・非重複poll |
 | P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
 
-P07開始条件は、primaryがP06の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
+P08開始条件は、primaryがP07の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
