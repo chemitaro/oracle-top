@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P10の初回候補はcheckpoint済み。コードレビューで指摘された大量行の描画失敗と、性能測定harnessの早期タイマー復帰を修復しました。primaryの全261テスト・installed CLI／PTY・通常ホスト上の正式性能は成功です。修復候補の再レビューとnative画面／shell入力は未完了で、製品受け入れ全体は未完了です。
+状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。コードレビューで指摘された大量行の描画失敗と、性能測定harnessの早期タイマー復帰を修復しました。primaryの全261テスト・installed CLI／PTY・通常ホスト上の正式性能、修復候補の2軸再レビューは成功です。native画面／shell入力のみ未検証で、製品受け入れ全体は未完了です。
 
 ## 実装環境と基準
 
@@ -775,7 +775,7 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 | A25 | pass | tui：scan5s／interval2sは次6s、同時scan1、drain中も重複採取なし |
 | A26 | pass | 修復後の通常ホスト上で正式製品60s：1000×16384bytes、CPU4.7249%、RSS111.7813MiB、p9597.6203ms、30scan、scan/read peak1 |
 | A27 | 一部／未検証 | tui＋PTY：q0／ETX・SIGINT130／SIGTERM143／例外1、raw flags・cursor・alternate復元はpass。実端末の画面・shell入力は未検証 |
-| A28 | 一部／未検証 | 全check、CLI6／PTY9、readonly、性能、README／HTMLはpass。native確認とレビュー完了までR32全体をpassにしない |
+| A28 | 一部／未検証 | 全check、CLI6／PTY9、readonly、性能、README／HTML、2軸レビューと修復は完了。native確認までR32全体をpassにしない |
 | A29 | pass | cli／installed bin：非TTY既定はstdout空・exit2、snapshot JSONはexit0 |
 | A30 | pass | json-reader／collectors／integration：配下symlink、1MiB+1、消失を隔離。log・他profileのopen0 |
 | A31 | pass | aggregate：created8日前・completed1時間前はreliability対象／usage窓外 |
@@ -830,7 +830,15 @@ primaryは元2pairのAssertionError/選択1failed→1passed、26ログのSHA、5
 
 最新READMEと同じ配布tarballをprimaryが再pack/offline導入し、installed CLI6件と同じpackageのPTY9件がexit0でした（primary-smoke-cli.log/primary-smoke-tty.log）。36fileのallowlist、runtime直接依存2つ、read-only、source/distの正式host測定との一致を確認しています。最新tarball SHA256は`006220a081a1a8ca4310c2ee30bc63f5d144b7facf3db421fc19f3e95ee2cbc4`で、Git管理外の`artifacts/oracle-top-0.1.0.tgz`へ同じbytesを配置しました。global install/publish/pushは実施していません。
 
-説明HTMLは更新後の既定validatorがexit0で、inline SVG1図、拡大/click/keyboard/focus復元を確認しました（primary-html.log）。文書ZIP/manifestを同期して修復checkpointを作り、そのSHAで2軸再レビューします。native画面/shell入力は引き続き未検証です。過去の4.5681%を修復後の性能証拠へ流用していません。
+説明HTMLは更新後の既定validatorがexit0で、inline SVG1図、拡大/click/keyboard/focus復元を確認しました（primary-html.log）。文書ZIP/manifestを同期して修復checkpointを作りました。native画面/shell入力は引き続き未検証です。過去の4.5681%を修復後の性能証拠へ流用していません。
+
+### 修復候補の再レビューと最終記録
+
+修復checkpointは`75a84e74422818676821d3afb58a250b0ee1a208`です。ユーザー基準/merge-baseの`f5b745107f09421655e05c92c8aef7603e9ee68d`から全10コミット・56ファイルを同じ2軸で再レビューしました。両担当は修復差13ファイルを重点確認し、未変更部分は初回調査を継承しました。review中にtracked file/refsを変更せず、終了時も候補HEAD・main cleanを確認しました。両結果と必要な自動検証の元job完了後に、primaryがanalyze-review-findingsで全指摘/coverage gapを分析しています。全文と判断は[コードレビュー](code-review.md)の各再レビュー・対応判断へ保存しました。
+
+新規指摘は0。StandardsのST-1は開示済みの履歴逸脱、ST-2〜4は保守候補として残します。SpecはSP-2の大量行とSP-3の正式check順序を解消と判定しました。独立Specはcurrent/usage各130000行をメモリ内で再現し、全文末尾/末尾警告、31行TUIと2つの省略表示を確認しました。検証の再実行はせずrootの261件/導入CLI/PTY/正式性能の証拠を参照しています。SP-1のnative不足は継続し、A21/A27/A28/A47・R32は未完了です。
+
+ここからの最終記録checkpointは文書・ZIP・manifestのみで、製品・test・harness・README/HTML・tarballは変更しません。同じ実行コードの検証を不要に繰り返さず、文書整合性、ZIPの全source/hash/CRC/再現性、完全staged diffを確認します。実装のremote push、global install、publish、Final Quality Gateは実施していません。残る実端末の画面・shell入力確認は、準備したnative-check/native-runによる人間の記録又は許可されたComputer Useで行います。アプリ操作の制限を別経路で回避せず、nativeの成功まで製品完成としません。
 
 ## 残工程と再開条件
 
@@ -843,6 +851,6 @@ primaryは元2pairのAssertionError/選択1failed→1passed、26ログのSHA、5
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
 | P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
 | P09 | checkpoint済み | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
-| P10 | 初回checkpoint済み、レビュー修復・最新自動検証成功 | native画面／shell入力、修復checkpoint・再review・最新文書／artifact同期 |
+| P10 | 実行コードのcheckpoint済み、レビュー修復・2軸再レビュー・最新自動検証成功 | native画面／shell入力。45ケースpass、A21/A27/A28/A47は一部／未検証 |
 
 P10はP09 checkpoint後にbranch／HEAD／worktreeと所有範囲を再確認して開始しました。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
