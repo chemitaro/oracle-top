@@ -15,7 +15,7 @@
 - `src/browser/config.ts:101-104,198-205`: manualLoginProfileDirの指定、ORACLE_BROWSER_PROFILE_DIR、os.homedir()/.oracle/browser-profileの順。デフォルトはORACLE_HOME_DIRと連動しない。
 - `src/browser/tabLeaseRegistry.ts:20-25,58-61`: 既定上限3、台帳はversion=1とleases配列。保存件数を読み、stale判定・cleanupを行わない。
 - `src/browser/config.ts:126-129`: Oracle本体の解決は明示config、env、既定値。oracle-topで会話合意の保存済み現在セッション→env→ユーザー設定→3を採用する場合は、Oracle全設定の完全な再現とは呼ばない。
-- 複数プロファイルや現在セッション間の異なるmax値を一つの値にまとめる規則、欠損台帳と壊れた台帳の区別が未具体化。
+- 複数プロファイルや現在セッション間の異なるmax値を一つの値にまとめる規則、欠損台帳と壊れた台帳の区別は当初未具体化でした。現在の決定はboundary-decisions.mdとdesign.mdに記録しています。
 
 ## 送信とfollow-up
 
@@ -25,7 +25,7 @@
 - 同一実行内browserFollowUpsについて、初回promptSubmitted=trueを必須としcompletedなら1+配列長、それ以外なら1という合意を維持する。途中送信の過小計上は許容する。
 - requestedモデル／effortを表示し、UIで実際に使われた値や公式課金データと混同しない。
 
-## 設計相談で解決する境界
+## 設計相談で決定した境界（当初の相談入力）
 
 1. browser判定、Gemini/API除外、unknownモデル、mode欠損の扱い。
 2. rootとprofileの解決、対象profileが異なる現在セッション、複数上限値の決定規則。
@@ -37,3 +37,7 @@
 8. Node/TypeScriptの最小依存、テストとCLI配布、実装担当GPT 6.1 Sol / High用の段階ゲート。
 
 設計選択は既存MVPを拡張せず、挙動を一意にするためのものとする。Product判断が必要な追加機能は採用しない。
+
+## 正式採用時の再確認
+
+Oracle 0.21.3 / personal-use-v3 / `5ebdd42b7a40b03bd6a14cb5e13f7d2124611b4c`で保存型、profile/max解決、台帳version、follow-up引継ぎを再確認しました。旧HEADから保存形式の根拠5ファイルに差分はありません。8境界の決定は[決定記録](boundary-decisions.md)、具体的な採用契約は[設計書](design.md)です。Oracle sourceや設定へ変更は加えていません。

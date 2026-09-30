@@ -18,12 +18,15 @@ acceptance = (spec / "acceptance.md").read_text()
 assert required <= set(re.findall(r"R-\d\d", requirements))
 assert required <= set(re.findall(r"R-\d\d", acceptance))
 plan = (spec / "implementation-plan.md").read_text()
-assert all(f"## P{i:02}" in plan for i in range(1, 10))
+assert set(re.findall(r"^## (P\d\d) —", plan, re.M)) == {f"P{i:02}" for i in range(1, 11)}
+assert {f"D-{i:02}" for i in range(1, 9)} <= set(re.findall(r"D-\d\d", (spec / "boundary-decisions.md").read_text()))
+assert {f"A{i:02}" for i in range(33, 50)} <= set(re.findall(r"A\d\d", acceptance))
 for path in [ROOT / "README.md", *spec.glob("*.md"), ROOT / "docs/work-plan.md"]:
     text = path.read_text()
     assert text.endswith("\n"), path
     assert text.count("```") % 2 == 0, f"Unbalanced code fence: {path}"
-    for target in re.findall(r"\]\(([^)]+)\)", text):
+    prose = re.sub(r"```.*?```", "", text, flags=re.S)
+    for target in re.findall(r"\]\(([^)]+)\)", prose):
         if "://" not in target and not target.startswith("#"):
             assert (path.parent / target.split("#")[0]).exists(), (path, target)
 html = (ROOT / "docs/overview.html").read_text()
@@ -35,10 +38,19 @@ example = json.loads((spec / "snapshot-example.json").read_text())
 assert set(schema["required"]) == set(example)
 assert example["reliability24h"]["evaluated"] == 30
 assert example["reliability24h"]["successRate"] == 0.8
+assert len(schema["$defs"]["warning"]["oneOf"][0]["properties"]["code"]["enum"]) == 30
+assert schema["$defs"]["current"]["properties"]["elapsedMs"]["anyOf"][0]["minimum"] == 0
+assert len(schema["oneOf"]) == 2
+assert '"failureRate"' not in json.dumps(schema)
+assert '"proAllowanceProxy"' not in json.dumps(schema)
 if ready["ready"]:
     assert ready["consultResult"] is not None
     assert ready["status"] == "ready"
+    assert ready["consultResult"]["githubVerification"] == "pass"
+    assert ready["consultResult"]["terminalCapture"] == "completed"
+    assert ready["blockingItem"] is None
+    assert ready["implementationStarted"] is False
 else:
     assert ready["blockingItem"]
-print(f"PASS planning consistency: 32 requirements / 9 steps; ready={ready['ready']}")
+print(f"PASS planning consistency: 32 requirements / 10 steps / 8 boundaries / A01-A49; ready={ready['ready']}")
 print("Product behavior, build, typecheck and implementation tests are not performed.")

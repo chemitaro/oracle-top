@@ -27,20 +27,35 @@ oracle-top-design-restoredはstatus=error、promptSubmitted未記録、submitted
 
 src/browser/actions/navigation.tsの既存会話判定は、同じconversationIdのsidebar history linkと識別ラベルを確認できない場合にconversation-unresolvedを返す。既存会話では最大10秒確認してから停止する。この分岐に到達したことは確認できたが、どのDOM要素が欠けたかは未特定。別モデルや新規会話の成功を、この既存会話の復旧証拠とはしない。安全判定を回避するflagやsource変更は行わない。
 
+## 操作による回避と今回の回答
+
+共有された「Oracle再開障害調査」の分析を助言として読み、現行source/buildと実際のChrome表示へ照合しました。プロジェクトのShow moreで対象会話を一覧に表示できましたが、通常起動が作る新しいタブでは表示が先頭5件へ戻り、同じ送信前エラーになりました。
+
+そこで既存の展開済みタブを、Strict wrapperの `--remote-chrome <host:port>` と `--browser-tab <exact-target-id>` で指定しました。会話モード判定を通過し、Pro選択確認と送信へ進みました。Oracle本体、設定、プロファイル、lease cleanupは変更していません。ピン留めは不要となり、適用していません。
+
+`oracle-top-existing-tab-recovery` は `Prompt did not appear in conversation before timeout` でexit1になりました。しかしread_threadで新しいユーザー発言を取得し、元のprompt全文と完全SHAの一致、および添付bundleを確認しました。送信済みと判断し、再送しませんでした。
+
+直後のharvestは30秒以内に新しい回答がなく、古い回答の取得を拒否しました。liveは60秒無変化でstalledとなり前回応答を出力しましたが、stop=yesだったため正式回答として採用しませんでした。完成後に同じセッション・exact targetをharvestし、state=completed、stop=no、assistant count増加、新しいGitHub検証節を含む非空の本文、exit0、保存ファイルを確認しました。
+
+## Strict検証と採用
+
+- 相談入力: `chemitaro/oracle-top`、`main`、`4f37e12b902547cba877f5ffaecaaef64ef9c811`。wrapperがclean worktreeと2回のlive upstream SHA一致を確認しました。
+- ChatGPTの報告: `GitHub.fetch` による `GET /repos/chemitaro/oracle-top/branches/main` の `commit.sha` がexpected SHAに完全一致しました。OUS-R001はありません。
+- このGitHub確認はChatGPTの本文に記録された、promptで強制するStrict検証です。機械署名付きconnector attestationを取得したとは主張しません。
+- 要求入力: `gpt-6-pro / pro`。Oracleはgpt-6-proを `Latest` に変換し、その選択をverified=trueと保存しました。harvestの `Thinking effortPro` 表記だけから正確なモデル世代を断定しません。
+- user turn: `fa6dfcd3-2c05-41a6-8db3-f98506b2e665`。assistant turn: `f91e596d-523e-4381-9023-f04fd52754f0`。元の会話で一度だけ依頼したことを確認しました。
+- 回答全文はGit管理外の.workbenchへ保存しました。全文hashはreadiness.consultResult.responseSha256です。公開文書へは採用した契約と短い検証記録だけを反映しています。
+
+型・mode・provider判定、root/profileの独立、既定max=3、v1台帳、string[]のbrowserFollowUps、CLI follow-upが別セッションになる点をローカルOracle sourceへ照合しました。8境界の採用判断は[決定記録](boundary-decisions.md)です。提出元のモデル名を公式利用枠の証拠にしません。
+
 ## 現在のゲート
 
-ready=false。正式版にする前に、同じ会話でStrict設計相談を完了し、GitHub connectorの完全SHA検証が成功した回答をローカル根拠へ照合する必要がある。
-現在のR/D/PとHTMLは、合意・ローカル証拠から作った具体的な下書きである。準備は進んでいるが「相談済みの正式版」「実装開始可能」とは扱わない。
+ready=true。正式なR/D/P、JSON契約、A01〜A49、説明HTML、ZIPを同期して検証しました。P01は完了し、GPT 6.1 Sol / HighがP02から本体実装を開始できます。implementationStarted=falseを維持します。
 
-手動ブラウザ操作へ切り替える場合、chatgpt-use-strictの規則:
-`Use the calling skill's wrapper with --export-input-bundle only when the user explicitly directs a switch from Oracle submission to manual ChatGPT browser operation`
-に従って、ユーザーの方式変更指示を得てから同じwrapperでexportし、同じ会話へprompt全文と全添付を送る。export時にも最新のclean HEADとGitHub SHA一致を検証する。
+これは既存タブの操作による回避です。Oracleの通常起動や送信確認・長時間応答回収の根本修復をした証拠ではありません。送信済みまたは不明なときは同じ会話の回収を優先し、promptを再送しません。
 
-## 再開順
+## 実装への引き継ぎ
 
-1. ユーザー指定のOracle復旧または手動送信方式を確定する。
-2. 必要なら最新下書きを相談対象としてcommit/pushし、clean状態とupstream SHAを確認する。
-3. 同じ会話で決定表・設計・計画を相談する。GitHub検証失敗の場合はStrict routeを止める。
-4. 回答をsourceと照合し、全技術境界とテスト契約を一致させる。
-5. 未決Product判断がなければ正式版へ変更し、readiness.ready=trueと証拠を記録する。
-6. HTML/ZIPを再生成・検証し、final commit/pushとSHA一致を確認してゴールを完了する。
+1. readinessと正式R/D/Pを読み、branch/HEAD/worktreeと担当モデル・推論を確認します。
+2. P02〜P10を順番に実行し、各振る舞いを一件ずつ検証してcheckpoint commitします。
+3. A01〜A49、製品check、配布・TTY・安全性・性能・文書の全ゲートが揃って製品実装完了にします。

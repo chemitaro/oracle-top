@@ -1,35 +1,111 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Oracle Top DashboardSnapshot draft v1",
+  "$id": "https://github.com/chemitaro/oracle-top/blob/main/docs/spec/dashboard.schema.json",
+  "title": "Oracle Top Dashboard Snapshot v1",
   "type": "object",
   "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "browserCapacity",
+    "currentSessions",
+    "reliability24h",
+    "submittedMessages",
+    "dataWarnings"
+  ],
   "properties": {
     "schemaVersion": {
       "const": 1
     },
     "generatedAt": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
     },
     "browserCapacity": {
+      "$ref": "#/$defs/capacity"
+    },
+    "currentSessions": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/current"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reliability24h": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/reliability"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "submittedMessages": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/submitted"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dataWarnings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/warning"
+      }
+    }
+  },
+  "$defs": {
+    "capacity": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "active",
+        "maximum",
+        "utilization",
+        "maximumSource"
+      ],
       "properties": {
         "active": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "maximum": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "utilization": {
-          "type": [
-            "number",
-            "null"
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "maximumSource": {
@@ -41,91 +117,89 @@
           ]
         }
       },
-      "required": [
-        "active",
-        "maximum",
-        "utilization",
-        "maximumSource"
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "active": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "utilization": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "utilization": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
       ]
     },
-    "currentSessions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "running"
-            ]
-          },
-          "elapsedMs": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "project": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "effort": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "status",
-          "elapsedMs",
-          "project",
-          "slug",
-          "model",
-          "effort"
-        ]
-      }
-    },
-    "reliability24h": {
+    "current": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "elapsedMs",
+        "project",
+        "slug",
+        "model",
+        "effort"
+      ],
       "properties": {
-        "completed": {
-          "type": "integer",
-          "minimum": 0
+        "id": {
+          "type": "string",
+          "minLength": 1
         },
-        "partial": {
-          "type": "integer",
-          "minimum": 0
+        "status": {
+          "enum": [
+            "pending",
+            "running"
+          ]
         },
-        "error": {
-          "type": "integer",
-          "minimum": 0
+        "elapsedMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "cancelled": {
-          "type": "integer",
-          "minimum": 0
+        "project": {
+          "type": "string",
+          "minLength": 1
         },
-        "evaluated": {
-          "type": "integer",
-          "minimum": 0
+        "slug": {
+          "type": "string",
+          "minLength": 1
         },
-        "successRate": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0,
-          "maximum": 1
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": "string",
+          "minLength": 1
         }
-      },
+      }
+    },
+    "reliability": {
+      "type": "object",
+      "additionalProperties": false,
       "required": [
         "completed",
         "partial",
@@ -133,72 +207,244 @@
         "cancelled",
         "evaluated",
         "successRate"
+      ],
+      "properties": {
+        "completed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "partial": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "error": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cancelled": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "evaluated": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "successRate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evaluated": {
+                "const": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "successRate": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "successRate": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
       ]
     },
-    "submittedMessages": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "model": {
-            "type": "string"
-          },
-          "effort": {
-            "type": "string"
-          },
-          "submitted24h": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "submitted7d": {
-            "type": "integer",
-            "minimum": 0
-          }
+    "submitted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "effort",
+        "submitted24h",
+        "submitted7d"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
         },
-        "required": [
-          "model",
-          "effort",
-          "submitted24h",
-          "submitted7d"
-        ]
+        "effort": {
+          "type": "string",
+          "minLength": 1
+        },
+        "submitted24h": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "submitted7d": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
       }
     },
-    "dataWarnings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "source": {
-            "enum": [
-              "sessions",
-              "session",
-              "config",
-              "leases"
-            ]
-          },
-          "sessionId": {
-            "type": "string"
+    "warning": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "source",
+            "sessionId"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "SESSIONS_MISSING",
+                "SESSIONS_UNREADABLE",
+                "FILE_MISSING",
+                "FILE_UNREADABLE",
+                "FILE_TOO_LARGE",
+                "FILE_NOT_REGULAR",
+                "FILE_CHANGED",
+                "SYMLINK_SKIPPED",
+                "INVALID_ENCODING",
+                "INVALID_JSON",
+                "INVALID_JSON5",
+                "INVALID_ROOT",
+                "INVALID_FIELD",
+                "MODE_UNRESOLVED",
+                "MODE_CONFLICT",
+                "PROVIDER_UNRESOLVED",
+                "PROVIDER_CONFLICT",
+                "STATUS_UNRECOGNIZED",
+                "ID_MISMATCH",
+                "TIME_INVALID",
+                "TIME_FUTURE",
+                "TIME_UNAVAILABLE",
+                "FOLLOWUPS_INVALID",
+                "SUBMISSION_UNRECORDED",
+                "PROFILE_UNRESOLVED",
+                "PROFILE_DIFFERENT",
+                "PROFILE_CONFLICT",
+                "CAPACITY_CONFLICT",
+                "LEASES_INVALID",
+                "DISPLAY_SANITIZED"
+              ]
+            },
+            "source": {
+              "const": "session"
+            },
+            "sessionId": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
-        "required": [
-          "code",
-          "source"
-        ]
-      }
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "source"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "SESSIONS_MISSING",
+                "SESSIONS_UNREADABLE",
+                "FILE_MISSING",
+                "FILE_UNREADABLE",
+                "FILE_TOO_LARGE",
+                "FILE_NOT_REGULAR",
+                "FILE_CHANGED",
+                "SYMLINK_SKIPPED",
+                "INVALID_ENCODING",
+                "INVALID_JSON",
+                "INVALID_JSON5",
+                "INVALID_ROOT",
+                "INVALID_FIELD",
+                "MODE_UNRESOLVED",
+                "MODE_CONFLICT",
+                "PROVIDER_UNRESOLVED",
+                "PROVIDER_CONFLICT",
+                "STATUS_UNRECOGNIZED",
+                "ID_MISMATCH",
+                "TIME_INVALID",
+                "TIME_FUTURE",
+                "TIME_UNAVAILABLE",
+                "FOLLOWUPS_INVALID",
+                "SUBMISSION_UNRECORDED",
+                "PROFILE_UNRESOLVED",
+                "PROFILE_DIFFERENT",
+                "PROFILE_CONFLICT",
+                "CAPACITY_CONFLICT",
+                "LEASES_INVALID",
+                "DISPLAY_SANITIZED"
+              ]
+            },
+            "source": {
+              "enum": [
+                "sessions",
+                "config",
+                "leases"
+              ]
+            }
+          }
+        }
+      ]
     }
   },
-  "required": [
-    "schemaVersion",
-    "generatedAt",
-    "browserCapacity",
-    "currentSessions",
-    "reliability24h",
-    "submittedMessages",
-    "dataWarnings"
+  "oneOf": [
+    {
+      "properties": {
+        "currentSessions": {
+          "type": "null"
+        },
+        "reliability24h": {
+          "type": "null"
+        },
+        "submittedMessages": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "currentSessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/current"
+          }
+        },
+        "reliability24h": {
+          "$ref": "#/$defs/reliability"
+        },
+        "submittedMessages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/submitted"
+          }
+        }
+      }
+    }
   ]
 }
