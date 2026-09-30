@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。コードレビューで指摘された大量行の描画失敗と、性能測定harnessの早期タイマー復帰を修復しました。primaryの全261テスト・installed CLI／PTY・通常ホスト上の正式性能、修復候補の2軸再レビューは成功です。native画面／shell入力のみ未検証で、製品受け入れ全体は未完了です。
+状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。コードレビューで指摘された大量行の描画失敗と、性能測定harnessの早期タイマー復帰を修復しました。primaryの全261テスト・installed CLI／PTY・通常ホスト上の正式性能、修復候補の2軸再レビューは成功です。内部実行PTYでのリサイズ・終了4経路・端末設定復元・shell入力も確認しました。native端末画面の描画・復元は未検証で、製品受け入れ全体は未完了です。
 
 ## 実装環境と基準
 
@@ -744,7 +744,7 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 
 最新tarballは`928dd23cc5d6a07d5df40c15523f3c4192bf57097a31bf448f74058738686fcb`です。36fileのallowlistを通り、個人データを含みません。sourceSHA `eb72f81253886d7af827fef59f3314b4ecfd5bcb516c6ade34ddd2348da12e8a`、distSHA `7cd1adf9991a20ce9508fd1c905054bd7aae673927a9146f4e15d4d5e186ee05`は、primaryの再build・最新導入・正式性能の3者で一致しました（primary-identity.json）。README変更やmtimeだけの変更で同じ実行コードの性能を再測定せず、正式60秒の成功をこの一致から対応付けます。
 
-以下は名称だけでなく、各公開境界のliteral assertionと修復後の全261件の成功、導入CLI／PTYの実行証拠に照合した表です。A26は後段の修復後・通常ホスト上の正式測定へ更新しました。`pass`は記載した境界の検証成功を示します。`一部／未検証`の4ケースは、実端末の目視・shell入力と、それを含む最終完了条件が残るためです。製品の未修正不具合4件という意味ではありません。R-ID／D-IDの対応はacceptance.mdを正本とします。
+以下は名称だけでなく、各公開境界のliteral assertionと修復後の全261件の成功、導入CLI／PTYの実行証拠に照合した表です。A26は後段の修復後・通常ホスト上の正式測定へ更新しました。A21/A27/A28/A47には後段の内部実行PTYの証拠を追加しました。`pass`は記載した境界の検証成功を示します。`一部／未検証`の4ケースは、実端末画面の描画・復元を目視する確認と、それを含む最終完了条件が残るためです。製品の未修正不具合4件という意味ではありません。R-ID／D-IDの対応はacceptance.mdを正本とします。
 
 | Case | 状態 | 検証境界・主要期待値／証拠 |
 |---|---|---|
@@ -768,14 +768,14 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 | A18 | pass | render／installed text：Oracle-only、direct ChatGPT除外、requested値・代理値の注記 |
 | A19 | pass | aggregate／render：同profile current→env→config→3、4/3を保持しtext133.3% |
 | A20 | pass | render：5領域、successだけ、quota領域なし |
-| A21 | 一部／未検証 | renderの日本語・結合文字・emoji幅、project／slug優先短縮はpass。実端末の目視は未検証 |
+| A21 | 一部／未検証 | renderの文字幅・優先短縮はpass。内部PTYの80/120列でも日本語・結合文字・ZWJ emoji全文と保護列のセル位置を確認。実端末の字形は未検証 |
 | A22 | pass | render／cli：表別省略件数。単発text／JSONは省略せず、installed CLIでも全件 |
 | A23 | pass | render：OSC／ESC／C0／C1／CRLF／TAB／Bidiを無害化、入力由来の単一セルを保持 |
 | A24 | pass | package／installed CLI：Node24 ESM bin、runtime直接依存2つ、公開36fileだけ |
 | A25 | pass | tui：scan5s／interval2sは次6s、同時scan1、drain中も重複採取なし |
 | A26 | pass | 修復後の通常ホスト上で正式製品60s：1000×16384bytes、CPU4.7249%、RSS111.7813MiB、p9597.6203ms、30scan、scan/read peak1 |
-| A27 | 一部／未検証 | tui＋PTY：q0／ETX・SIGINT130／SIGTERM143／例外1、raw flags・cursor・alternate復元はpass。実端末の画面・shell入力は未検証 |
-| A28 | 一部／未検証 | 全check、CLI6／PTY9、readonly、性能、README／HTML、2軸レビューと修復は完了。native確認までR32全体をpassにしない |
+| A27 | 一部／未検証 | tui＋PTY：q0／ETX・SIGINT130／SIGTERM143／例外1、復元制御出力はpass。内部の対話shellでも4経路のstty完全一致、入力・削除・実行を確認。実端末画面での復元は未検証 |
+| A28 | 一部／未検証 | 全check、CLI6／PTY9、内部対話PTY、readonly、性能、README／HTML、2軸レビューと修復は完了。native画面確認までR32全体をpassにしない |
 | A29 | pass | cli／installed bin：非TTY既定はstdout空・exit2、snapshot JSONはexit0 |
 | A30 | pass | json-reader／collectors／integration：配下symlink、1MiB+1、消失を隔離。log・他profileのopen0 |
 | A31 | pass | aggregate：created8日前・completed1時間前はreliability対象／usage窓外 |
@@ -794,11 +794,11 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 | A44 | pass | collectors／aggregate：全体取得不能は3領域null、正常空は[]／0、部分破損は読めた値＋警告 |
 | A45 | pass | serializeJson：生C1・端末制御を出さず、JSON.parse後は保存文字列と一致 |
 | A46 | pass | schema：実Ajv2020 strictでextra property／未知warning／負elapsed／不正null組合せを拒否。算術・順序等はaggregateの別assertion |
-| A47 | 一部／未検証 | render／PTY：幅不足・高さ不足、全件保護列幅、最終行／列の余白、snapshot全件はpass。実端末の折返し・scrollは未検証 |
+| A47 | 一部／未検証 | render／PTY：幅・高さ不足、保護列幅、最終行／列の余白、snapshot全件はpass。内部PTYの120×32/80×24・40×24/120×10・連続resizeも確認。実端末の折返し・scrollは未検証 |
 | A48 | pass | tui／cli：drain中resize／q／EPIPE、遅延error／closeの停止、重複write・late描画・無限待機なし |
 | A49 | pass | json-reader／collectors：読取中変更を隔離、次poll正常file採用、last-good補完なし |
 
-実端末確認には、最新installed receiptとtarball／dist一致を先に検査する`.workbench/p10/native-run.mjs`、寸法・終了4経路を記載した`native-check.md`を用意しました。これは未実施の開発用手順です。Terminal／GhosttyへのComputer Useがアプリ安全規則で拒否されているため、別経路で回避しません。操作許可の変更か、人間の実施結果を待ちます。自動PTYの成功を目視・shell入力の成功へ転記しません。
+実端末確認には、最新installed receiptとtarball／dist一致を先に検査する`.workbench/p10/native-run.mjs`、寸法・終了4経路を記載した`native-check.md`を用意しました。後段で内部実行PTYによる対話shellの確認を実施しました。画面の目視手順は未実施です。Ghosttyに加えCodexのComputer Useもアプリ安全規則で拒否されているため、許可された画面操作又は人間の画面観測が必要です。
 
 ## 初回コードレビューと修復・最新自動検証
 
@@ -840,6 +840,31 @@ primaryは元2pairのAssertionError/選択1failed→1passed、26ログのSHA、5
 
 ここからの最終記録checkpointは文書・ZIP・manifestのみで、製品・test・harness・README/HTML・tarballは変更しません。同じ実行コードの検証を不要に繰り返さず、文書整合性、ZIPの全source/hash/CRC/再現性、完全staged diffを確認します。実装のremote push、global install、publish、Final Quality Gateは実施していません。残る実端末の画面・shell入力確認は、準備したnative-check/native-runによる人間の記録又は許可されたComputer Useで行います。アプリ操作の制限を別経路で回避せず、nativeの成功まで製品完成としません。
 
+## 内部ターミナルでの対話検証（2026-10-01）
+
+ユーザーの内部ターミナル利用指示に従い、Codexの`exec_command(tty=true)`から`/usr/bin/script`で所有するmacOS PTYと`/bin/zsh -f`を起動しました。対象コードは修復候補`75a84e74422818676821d3afb58a250b0ee1a208`と同一です。installed binとcurrent distの全bytes一致、配布tarball SHA256 `006220a081a1a8ca4310c2ee30bc63f5d144b7facf3db421fc19f3e95ee2cbc4`をhelperで照合してから起動しました。ライブOracleデータは使用せず、隔離した40件の合成metadataを読みます。
+
+内部PTYの既定は`TERM=dumb`でした。そのままの初回起動は仕様どおりstdoutのTUIを拒否してexit2でした。ANSI出力を採取するため、開発側の起動コマンドだけに`TERM=xterm-256color`を指定しました。この変更は端末の実描画器を用意するものではありません。製品のTTY判定や環境変数契約は変更していません。
+
+| 内部PTYでの操作 | 結果 |
+|---|---|
+| 120列×32行 | 31内容行・最大119セル、20current／40送信、5領域 |
+| 80列×24行 | 23内容行・最大79セル、表ごとの省略を表示 |
+| 40列×24行 | 幅不足の最小表示`!`（設計どおり） |
+| 120列×10行 | `Terminal too short: need 20 rows. Use oracle-top snapshot.` |
+| 80×24→40×24→120×32の連続resize | 最終サイズの31内容行・最大119セルへ追従 |
+| q／実際のETX入力／所有childへのSIGTERM／制御した採取例外 | 製品exit 0／130／143／1、helperは各0 |
+| 各終了後の端末とshell | `stty -g`の起動前/後が4回とも完全一致。通常文字の入力・DELによる削除・command実行が4回とも成功 |
+| 復元制御出力 | alternate開始/終了、cursor非表示/表示、SGR resetを各4回観測 |
+
+元の対話session 80667はexit0で終了し、トランスクリプトSHA256は`f986e5f9ae9e46a09da21d869e3de53695afbd598ce6c08828018b952315dca9`です。原ログと集計は`.workbench/p10/internal-terminal/session.log`／`proof.json`へ保存しました。これは自動PTY9ケースとは別の、実際の対話shell入力を伴う確認です。
+
+元fixtureの長いslug末尾にある結合文字・emojiは表の省略で見えないため、元fixtureを保持したまま別のprivate visual fixtureを作りました。2番目のcurrent行の短いslug `日é👨‍👩‍👧‍👦` が80列/120列とも全文出力され、5セル幅、保護するmodel列のセル位置一致、最初の長いslugのellipsisを照合しました。120×32では31行/119セルの8frame、80×24では23行/79セルの9frameでした。内容・mtimeNs・mode・treeの前後inventoryも一致しました。元session 95449はq0/helper0/script0、stty完全一致とshell入力・削除・実行も成功です。原ログ`unicode-session.log`のSHA256は`ac26c4be1d9c2620817959472ed3e1d6563af05a3c0cb059e546f64f9b4eb47a`、集計は同じディレクトリの`unicode-proof.json`です。
+
+Codexのアプリterminalを開く`open_in_codex`はqueuedで、内部実行PTYとは別の画面です。`cua.getApp("com.openai.codex")`は「Computer Use is not allowed to use the app 'com.openai.codex' for safety reasons.」で拒否されました。端末画面のpixels、フォントによる日本語・結合文字・emojiの見え方、実際の折返し/scroll、cursor/色/元screenの見た復元は確認できていません。[acceptance.md](acceptance.md)の「PTY検査と、macOSの実端末での画面・復元確認は両方記録します」に従い、4ケースとR32の完了判定は保留します。制限されたアプリ画面の操作を別経路で回避しません。
+
+製品・tests・tracked harness・README/HTML・配布packageは今回変更していません。既存の261件/CLI6/PTY9/正式性能/レビュー証拠を保持し、追加した内部PTYの結果と文書ZIP/manifestだけを同期します。native画面確認用のprivate手順は、短いUnicode slugを含む別receiptを指定できる状態に更新しました。
+
 ## 残工程と再開条件
 
 | 工程 | 状態 | 残る証拠 |
@@ -851,6 +876,6 @@ primaryは元2pairのAssertionError/選択1failed→1passed、26ログのSHA、5
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
 | P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
 | P09 | checkpoint済み | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
-| P10 | 実行コードのcheckpoint済み、レビュー修復・2軸再レビュー・最新自動検証成功 | native画面／shell入力。45ケースpass、A21/A27/A28/A47は一部／未検証 |
+| P10 | 実行コードのcheckpoint済み、レビュー修復・2軸再レビュー・自動検証・内部対話PTY成功 | native画面の描画・復元。45ケースpass、A21/A27/A28/A47は一部／未検証 |
 
 P10はP09 checkpoint後にbranch／HEAD／worktreeと所有範囲を再確認して開始しました。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

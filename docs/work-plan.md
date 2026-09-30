@@ -52,4 +52,6 @@ P10初回候補はf33402a8dc664ff02f63c0b09bf9280ab8c64104へcheckpointしまし
 
 レビュー修復は75a84e74422818676821d3afb58a250b0ee1a208へcheckpointしました。ユーザー指定のf5b7451からの全実装を同じ2軸で再レビューし、新規指摘0、SP-2/3解消、native不足SP-1継続を確認しました。初回/再レビュー全文と対応判断はcode-review.mdへ記録しています。CPU超過したsandbox測定、8scanのA/B/A診断、通常ホストの正式成功を別証拠として保持し、旧未合格を合格へ補正していません。primaryの元テスト証拠・全261件・source/dist一致照合は完了しています。最終記録を文書/ZIP/manifestのcheckpointとして保存します。Final Quality Gateは実施しません。
 
-残る受け入れは実端末の画面・終了後のshell入力確認です。自動検証とレビュー修復は完了しましたが、A21/A27/A28/A47・R32が一部/未検証のため、P10全体と製品納品完了のcheckboxは保留します。native操作がCUAアプリ安全規則で拒否されているため、許可の変更又は準備済み手順による人間の結果が必要です。
+2026-10-01、ユーザーの指示に従い内部実行PTYで対話検証を追加しました。120×32/80×24、幅不足40×24、高さ不足120×10、連続resizeの最終描画を確認し、q0/Ctrl-C130/SIGTERM143/制御例外1は全て期待どおりでした。4経路それぞれでstty完全一致、shellの通常入力・削除・実行が成功しました。別private fixtureの短い日本語・結合文字・ZWJ emojiも80/120列に全文残り、保護列のセル位置と入力inventory不変を確認しました。製品コード/配布packageは変更せず、元logと集計を.workbench/p10/internal-terminalへ保持します。
+
+残る受け入れは実端末画面の描画・復元の目視です。内部PTYは既定TERM=dumbのため、ANSI採取時に起動側だけxterm-256colorを指定しました。端末の実pixelsを得た確認とは区別します。Ghosttyに加えCodexもCUAアプリ安全規則で拒否され、Codex terminal panelのopenはqueuedでした。A21/A27/A28/A47・R32が一部/未検証のため、P10全体と製品納品完了のcheckboxを保留します。許可された画面操作又は準備済み手順による人間の画面観測が必要です。private native-run/native-checkにはUnicodeが見える別fixtureを指定する手順を準備しています。
