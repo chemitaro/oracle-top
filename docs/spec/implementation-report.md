@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P06はcheckpoint済み、P07の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P08〜P10は未実施で、製品実装は未完了です。
+状態: P02〜P07はcheckpoint済み、P08の実装・局所検証が完了し、primaryによる差分確認とcheckpoint commitを待っています。P09〜P10は未実施で、製品実装は未完了です。
 
 ## 実装環境と基準
 
@@ -9,7 +9,7 @@
 - 開始HEAD: `f5b745107f09421655e05c92c8aef7603e9ee68d`。
 - 開始worktree: clean。作業中の`docs/work-plan.md`、`docs/spec/readiness.json`、`scripts/check-planning.py`はprimary所有の変更です。
 - 環境: macOS、Node `v24.14.0`、npm `11.18.0`。
-- scratch/cache: `use-workbench ensure`で解決・ignore確認したプロジェクト内`.workbench`。実Oracleデータ・会話は使用していません。
+- scratch/cache: `use-workbench ensure`で解決・ignore確認したプロジェクト内`.workbench`。正式検証は合成fixtureを使います。P08の手順誤りによる実metadataの意図しない読取と対処はP08節へ記録します。
 
 ## P02 — Node／TypeScript基盤
 
@@ -420,9 +420,92 @@ schema: requires-output-fields-in-root-and-nested-records
 | `npm run check` | 0 | format／typecheck／全167件test／build成功、`.workbench/p07/check.log` |
 | `git diff --check` | 0 | 空白エラーなし |
 
-P07の最終検証に新たな警告・失敗はありません。fixtureはメモリ内の合成Snapshotと正式な合成例だけで、実Oracleデータ・秘密値を使っていません。元ログを保持し、除去すべき一時fixture配置はありません。P07 checkpoint SHAは未作成で、primaryが完全差分・元ログ確認とcommitを担当します。この実装担当はGit書込み、外部分析、追加agentを実行していません。
+P07の最終検証に新たな警告・失敗はありません。fixtureはメモリ内の合成Snapshotと正式な合成例だけで、実Oracleデータ・秘密値を使っていません。元ログを保持し、除去すべき一時fixture配置はありません。P07 checkpoint SHAは`2d13625abdbff19e9548a1af14c18e8a6e2f0485`です（primaryによる完全差分・元ログ確認・commit済み）。この実装担当はGit書込み、外部分析、追加agentを実行していません。
 
 配布CLI・default TTYの実動作・PTY／実TTY終了とresize・採取から描画まで含めたCPU／RSS／p95は未検証です。P10実測で改善の必要性を判断し、予備計測を正式性能passとして扱いません。P08〜P10と製品受け入れ全体は未完了です。
+
+## P08 — CLI・単発プロセス契約
+
+開始時は`main`／`2d13625abdbff19e9548a1af14c18e8a6e2f0485`／cleanを確認しました。担当変更は`src/cli.ts`、`tests/cli.test.ts`、packageのbin／filesとlock rootのbin同期、本reportです。primary所有のREADME／HTML／work-plan等を保持します。
+
+built CLIと最小注入境界`main(argv, deps)`で、単独help／version、snapshot text、snapshot --json、TUI argv／preflightを実装しました。起動時のenv／cwd／osHomeをコピーし、snapshotはcollectInputs→buildDashboard→共通rendererを一度だけ通します。JSONは一文書＋改行、textはANSIなしの全行・全警告です。警告付き有効Snapshotもexit0、未知arg／重複／不正組合せ／interval／NUL startupと非TTYはstdout空・exit2です。stdin／stdout両TTYとTERM≠dumbを要求します。診断・usageは採取しません。
+
+stdoutのEPIPEはsnapshot／help／versionすべてexit0、他の出力障害・内部例外はexit1です。stderr障害も未処理eventやhangにせずexit1へ閉じます。write callbackとerror eventを扱い、falseならdrainも待ち、完了／失敗時に自分のlistenerを解除します。遅いcallbackのflush、pending output中のerror、後から返るcallbackで追加writeしない境界も確認しました。通常entryは`process.exitCode`だけを設定し、強制process.exitやstdout destroyをしません。内部メッセージにパス・prompt・stackを返しません。
+
+Node24の`import.meta.main`で直接実行し、shebang付き`dist/cli.js`をbin oracle-topへ指定しました。Nodeによるbin symlink経由のentry実行を確認しました。`files=[dist, README.md]`、private:true、runtime直接依存2つを保持します。pack dry-run候補はdistのJS／型宣言とREADME、package.jsonだけの28ファイル、61,204 bytesでした。spec／tests／Workbench／private fixture／liveデータは含みません。tarball導入後のnpm bin実行はP10の別検証です。
+
+有効TTYは注入runnerへ固定startupとparse済みintervalを渡します。既定2000ms・指定3000msのうち、指定値と返却exit143を接続回帰で確認しました。製品runnerは未接続で、実TTY時は仮の正常終了をせずexit1です。default TUI・poll／resize／終了復元はP09未実装です。
+
+### 試験隔離の手順逸脱と是正
+
+最初のEPIPE試験は、実行可能main stubがdepsを受け取るだけで未接続だったため、既定homeの実metadataを意図せずread-onlyで読取り、private cycles.logへSnapshotを出力しました。対象へのwriteはありません。この実行は正式TDD証拠から除外しました。primaryの承認により、実データを含む生Snapshotの1行だけをredaction markerへ置換し、command／exit1／対象1件failedのメタデータを保持しました。元データは他のログ・reportへ再保存していません。
+
+根本防止として、mainをVitest process内で呼ぶ試験をなくし、built moduleを専用scenario childで実行します。childのHOME、ORACLE_HOME_DIR、ORACLE_BROWSER_PROFILE_DIRを合成fixtureへ固定し、親process envを変更しません。startup注入を省略してもosHomeと選択2pathがfixture内、current=[]となる安全caseを先行検証しました。その後のEPIPE成功は初回pass回帰として扱い、人工的なRedを生成していません。fixturesはbeforeEachのrecursive mkdir→mkdtempで成立し、afterEachで当該fixtureだけを削除します。
+
+JSON caseの初回stub RedはJSON一文書のassertion不一致です。実装後の一度目Greenではテストが正本browserCapacityをcapacityと誤記して失敗し、正本型へ訂正後にGreenとなりました。この期待値誤記を製品バグ修正として数えません。
+
+内部例外とdiagnostic出力障害の最初の試験はchildのruntime終了で失敗したため正式Redから除外しました。child内で例外／eventを捕捉して公開結果に変換し、正しい期待値とのAssertionErrorを確認してからGreenへ進めました。最終非同期検証はresolvesで期待結果を判定します。
+
+runner接続の初回試験と一度目Greenは親TERM=dumbを継承してpreflight拒否となりました。この2回は正しいrunner前提でなく正式Redから除外し、child TERM=xterm固定後の成功を回帰として扱います。履歴は保存し、Red再生成はしません。
+
+### Focused Red→Greenと回帰
+
+各対象選択は`npm test -- tests/cli.test.ts -t '^<name>$' --reporter=verbose`です。下記11件は実行可能stub／現在の公開結果に対する対象1件のAssertionError、exit1→同名Green exit0です。import／compile／spawn失敗、0件suite、上記手順逸脱は数えません。各buildと選択command／stdout・stderrは`.workbench/p08/build.log`と`cycles.log`、exitは`exits.txt`へ保存しました。
+
+| 真のassertion Red→Green | Red / Green exit |
+|---|---|
+| shows-help-without-collection | 1 / 0 |
+| shows-version-without-collection | 1 / 0 |
+| emits-complete-text-snapshot | 1 / 0 |
+| emits-one-json-document | 1 / 0 |
+| rejects-unapproved-argument-combinations | 1 / 0 |
+| rejects-non-tty-before-any-stdout | 1 / 0 |
+| reports-other-output-failure-without-private-details（safe child） | 1 / 0 |
+| isolates-internal-exceptions-with-safe-exit-one（captured boundary） | 1 / 0 |
+| rejects-invalid-startup-values-with-usage-exit | 1 / 0 |
+| handles-diagnostic-output-errors-and-flush（captured event） | 1 / 0 |
+| defines-distribution-bin-and-runs-symlink-entry | 1 / 0 |
+
+残る14件は初回pass回帰です。安全な前提での初回を数え、除外した試験や誤ったTERM前提をRedと扱いません。
+
+```text
+succeeds-with-isolated-data-warnings
+isolates-default-home-even-without-startup-injection
+treats-stdout-epipe-as-success
+waits-for-backpressure-and-flush-with-one-write
+contains-stderr-write-failure-with-exit-one
+connects-valid-tty-to-injected-runner-with-parsed-interval
+requires-both-tty-streams-and-nondumb-term
+diagnostics-and-usage-do-not-collect
+snapshots-startup-and-collects-clock-once
+help-and-version-epipe-are-success
+valid-tty-is-unfinished-without-runner-not-false-success
+built-snapshot-keeps-all-rows-and-all-warnings
+contains-error-event-during-pending-output-with-no-late-write
+built-cli-exits-zero-when-output-pipe-closes
+```
+
+全件fixtureはcurrent12件＋不正3件をtext／JSONで省略せず検証しました。EPIPE built processは各150,000字の合成slug8件でpipeを閉じ、code0／signalなし／stderr空を確認しました。
+
+### 最終検証
+
+| command | exit | 証拠 |
+|---|---:|---|
+| `npm run build` | 0 | build.log、Node24 ESM |
+| `npm test -- tests/cli.test.ts -t '^emits-one-json-document$' --reporter=verbose` | 0 | 対象1件pass、cycles.log |
+| `npm test -- tests/cli.test.ts --reporter=verbose` | 0 | 25件pass、suite.log |
+| `npm run typecheck` | 0 | typecheck.log |
+| `npm run check` | 0 | format／typecheck／全192件・9suite／build、check.log |
+| `npm pack --dry-run --json`（初回） | 255 | 既定npm cacheへのsandbox EPERM、pack.json／pack.log |
+| `npm pack --dry-run --json --cache .workbench/p08/npm-cache` | 0 | 既定cacheを変更せず開発cacheへ限定、pack-safe.json／pack-safe.log |
+| 配布file listの許可集合assertion | 0 | dist・README.md・package.jsonのみ28件、private fixtureなし |
+| `git diff --check` | 0 | 空白エラーなし |
+
+新規checkout相当の隔離cwdへsrc／cli test／package／tsconfig等と既存node_modules参照を配置し、対象source／testのSHA-256一致と開始時dist／.workbench/p08不存在を確認しました。明示`npm run build`→CLI全25件は両exit0です。証拠は`.workbench/p08/fresh-proof.txt`、fresh-build.log、fresh-cli.logで、一時cwdは検証後に削除しました。clone／ネットワークはありません。
+
+既存CIとpackage checkはtest→build順で、新規checkoutにはdistがないためbuilt CLI testが成立しませんでした。primaryがCIとcheckをformat→typecheck→build→testの順へ修正しました。既存workspaceの`npm run check`と、src／全tests／package／TypeScript・Prettier設定／Schema・例をSHA-256一致で配置し、dist／Workbenchの事前不存在を確認した隔離cwdの`npm run check`は、いずれもexit0・全192件passです。clone／ネットワークは使用せず、一時cwdを削除しました。元ログは`.workbench/p08/primary-check.log`、`check-order-fresh.log`、配置証拠は`check-order-proof.txt`です。GitHub Actionsのremote実行結果はまだ取得していません。
+
+P08のcheckpointはprimaryの差分・元ログ確認待ちです。この担当はstage／commit／push／branch変更、外部分析、追加agentを実行していません。packはdry-runのみでpublishしていません。P09／P10、実TUI、tarball導入、実TTY、正式60秒性能・全受け入れは未完です。
 
 ## 残工程と再開条件
 
@@ -432,9 +515,9 @@ P07の最終検証に新たな警告・失敗はありません。fixtureはメ�
 | P04 | checkpoint済み | 設定・intervalの22テストとfocused履歴 |
 | P05 | checkpoint済み | 限定投影・日時の46テストとfocused履歴 |
 | P06 | checkpoint済み | 採取・集約の47テストとfocused履歴 |
-| P07 | 実装・局所検証済み、checkpoint待ち | 描画・Schemaの23テストとfocused履歴 |
-| P08 | 未実施 | built CLI・bin・単発プロセス契約 |
+| P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
+| P08 | 実装・局所検証済み、checkpoint待ち | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
 | P09 | 未実施 | TUI終了・復元・resize・非重複poll |
 | P10 | 未実施 | 配布CLI・実TTY・安全性・性能・全受け入れと文書 |
 
-P08開始条件は、primaryがP07の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
+P09開始条件は、primaryがP08の完全差分とRed／Greenログを確認してcheckpoint commitを完了し、branch／HEAD／worktreeと所有範囲を再確認することです。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

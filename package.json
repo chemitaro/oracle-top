@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "format:check": "prettier --check \"**/*.{ts,json,yml,yaml}\"",
-    "check": "npm run format:check && npm run typecheck && npm test && npm run build"
+    "check": "npm run format:check && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
     "json5": "2.2.3",
@@ -23,5 +23,12 @@
     "prettier": "3.9.9",
     "typescript": "7.0.2",
     "vitest": "5.0.2"
-  }
+  },
+  "bin": {
+    "oracle-top": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
 }
