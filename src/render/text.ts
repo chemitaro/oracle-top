@@ -163,12 +163,11 @@ export function renderText(
     .join("\n");
 }
 function widths(header: readonly string[], rows: string[][]): number[] {
-  return header.map((value, index) =>
-    Math.max(
-      displayWidth(value),
-      ...rows.map((row) => displayWidth(row[index]!)),
-    ),
-  );
+  return header.map((value, index) => {
+    let width = displayWidth(value);
+    for (const row of rows) width = Math.max(width, displayWidth(row[index]!));
+    return width;
+  });
 }
 function tableLine(values: readonly string[], sizes: number[]): string {
   return values

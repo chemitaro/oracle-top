@@ -1,4 +1,13 @@
 import { createFixture } from "./fixture.mjs";
+export async function waitUntil(targetMs, { now, sleep }) {
+  for (
+    let remaining = targetMs - now();
+    remaining > 0;
+    remaining = targetMs - now()
+  ) {
+    await sleep(Math.max(1, Math.ceil(remaining)));
+  }
+}
 export function summarizeMeasurement(
   samples,
   cpu,
@@ -102,8 +111,10 @@ async function measure(root, output) {
       cpuCollected = process.cpuUsage(cpuScan);
     const snapshot = buildDashboard(result.inputs, result.nowMs);
     const aggregated = performance.now();
+    const cpuRenderStart = process.cpuUsage();
     const text = renderText(snapshot, { columns: 120, rows: 32 });
     const done = performance.now();
+    const cpuRendered = process.cpuUsage(cpuRenderStart);
     liveScans--;
     if (
       snapshot.currentSessions.length !== 500 ||
@@ -118,15 +129,17 @@ async function measure(root, output) {
       aggregateMs: aggregated - collected,
       renderMs: done - aggregated,
       collectCpuUs: cpuCollected.user + cpuCollected.system,
+      collectCpuUserUs: cpuCollected.user,
+      collectCpuSystemUs: cpuCollected.system,
+      renderCpuUserUs: cpuRendered.user,
+      renderCpuSystemUs: cpuRendered.system,
     });
     const next =
       base + (Math.floor((done - base) / intervalMs) + 1) * intervalMs;
-    await new Promise((resolve) =>
-      setTimeout(
-        resolve,
-        Math.max(0, Math.min(next, base + durationMs) - performance.now()),
-      ),
-    );
+    await waitUntil(Math.min(next, base + durationMs), {
+      now: () => performance.now(),
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
   }
   const wallMs = performance.now() - base,
     cpu = process.cpuUsage(cpuStart);

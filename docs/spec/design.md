@@ -47,6 +47,8 @@ workerは最初の採取時に遅延起動し、TUIのpoll間で同じ1本を再
 
 syscall前後の共有停止flag検査は、adapter method作成時に組み立てるguardでも同じ順序で実施します。検査の削除やrealpath／lstat回数の削減によって性能予算を満たしません。表示の内部整理でも、必要幅は高さによる省略前の全件から求め、可視行だけをformatする場合はSnapshot・省略件数・text／JSONの全件出力を維持します。
 
+各列の最大幅はheaderを起点に全行を反復して求めます。行数を関数引数数へ変換せず、大量行でもJavaScriptの関数引数上限へ到達しない計算にします。製品へ総行数の上限を追加しません。
+
 ---
 
 ## 5.2 入力schemaと未知値
@@ -665,6 +667,8 @@ peak RSS    150MiB以下
 初回採取時間も別に記録します。測定には採取・投影・集計・描画を含め、fixture生成とnpm処理は含めません。
 
 worker起動も初回と60秒測定に含め、CPUは全threadを含むprocess全体を1コア換算、peak RSSもprocess全体で記録します。fixture生成と事前のhash／tree準備は別processで行い、終了後の不変確認は受け入れCPU／RSS値を固定してから行います。測定だけに強制GCを加えません。
+
+測定harnessはmonotonicな開始グリッド／60秒末端へ達したかをタイマー復帰後にも確認し、期限前の復帰で余分な採取を始めません。実行環境も記録し、検証ツールが付加するfilesystem sandboxの負担と、通常ホスト上のNode CLI実行を区別します。製品側のread-only能力・変更検知・全processの算出式・予算は両者で同じです。
 
 workerの `resourceLimits.maxYoungGenerationSizeMb` は4MiBにし、短命objectの領域を制御します。old-generation、stack、ファイル数・有効入力容量へ新たな上限を設ける方式ではありません。最大1MiBの有効fileと保存文字列の同値性を別途検証します。workerの停止・unref・descriptor追跡・領域設定は[Node 24.14.0公式](https://nodejs.org/download/release/v24.14.0/docs/api/worker_threads.html)に照合します。
 

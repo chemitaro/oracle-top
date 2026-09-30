@@ -422,3 +422,128 @@ test("keeps-hours-above-day-and-formats-unclamped-percent-to-one-decimal", () =>
     1.3333333333333333,
   );
 });
+
+test("renders-unbounded-current-and-usage-tables-without-argument-overflow", () => {
+  const value = snapshot();
+  value.currentSessions = Array.from({ length: 130000 }, (_, index) => ({
+    id: `session-${String(index).padStart(6, "0")}`,
+    status: "running",
+    elapsedMs: 120000,
+    project: "p",
+    slug:
+      index === 0
+        ? "current-first-sentinel"
+        : index === 129999
+          ? "current-last-sentinel"
+          : `current-${index}`,
+    model: "gpt-6-astra",
+    effort: "high",
+  }));
+  value.submittedMessages = Array.from({ length: 130000 }, (_, index) => ({
+    model:
+      index === 0
+        ? "usage-000000-first-sentinel"
+        : index === 129999
+          ? "usage-129999-last-sentinel"
+          : `usage-${String(index).padStart(6, "0")}`,
+    effort: "high",
+    submitted24h: 1,
+    submitted7d: 1,
+  }));
+  value.dataWarnings = [
+    { source: "session", code: "INVALID_JSON", sessionId: "first-warning" },
+    { source: "session", code: "INVALID_JSON", sessionId: "last-warning" },
+  ];
+  let full = "";
+  expect(() => {
+    full = renderText(value);
+  }).not.toThrow();
+  const fullLines = full.split("\n");
+  expect(fullLines.filter((line) => line.startsWith("running")).length).toBe(
+    130000,
+  );
+  expect(fullLines.filter((line) => line.startsWith("usage-")).length).toBe(
+    130000,
+  );
+  for (const sentinel of [
+    "current-first-sentinel",
+    "current-last-sentinel",
+    "usage-000000-first-sentinel",
+    "usage-129999-last-sentinel",
+    "session INVALID_JSON first-warning",
+    "session INVALID_JSON last-warning",
+  ])
+    expect(full).toContain(sentinel);
+  expect(full).not.toContain("more; use");
+  let terminal = "";
+  expect(() => {
+    terminal = renderText(value, { columns: 120, rows: 32 });
+  }).not.toThrow();
+  const terminalLines = terminal.split("\n");
+  expect(terminalLines).toHaveLength(31);
+  expect(
+    terminalLines.filter((line) => line.startsWith("running")).length,
+  ).toBe(6);
+  expect(terminalLines.filter((line) => line.startsWith("usage-")).length).toBe(
+    6,
+  );
+  expect(
+    terminalLines.filter(
+      (line) => line === "... 129994 more; use oracle-top snapshot",
+    ).length,
+  ).toBe(2);
+  expect(terminal).toContain("current-first-sentinel");
+  expect(terminal).toContain("usage-000000-first-sentinel");
+  expect(terminal).not.toContain("current-last-sentinel");
+  expect(terminal).not.toContain("usage-129999-last-sentinel");
+  for (const line of terminalLines)
+    expect(displayWidth(line)).toBeLessThanOrEqual(119);
+  expect(value.currentSessions).toHaveLength(130000);
+  expect(value.submittedMessages).toHaveLength(130000);
+  expect(value.currentSessions[129999]!.slug).toBe("current-last-sentinel");
+  expect(value.submittedMessages[129999]!.model).toBe(
+    "usage-129999-last-sentinel",
+  );
+}, 30000);
+
+test("keeps-late-protected-width-before-height-omission", () => {
+  const value = snapshot();
+  const template = value.currentSessions![0]!;
+  value.currentSessions = Array.from({ length: 7 }, (_, index) => ({
+    ...template,
+    id: `current-${index}`,
+    slug: `current-${index}`,
+    model: index === 6 ? "日".repeat(50) : "gpt-6-astra",
+  }));
+  expect(renderText(value, { columns: 120, rows: 19 })).toBe(
+    "Terminal too narrow: need 139 columns. Use oracle-top snapshot.",
+  );
+  const current = renderText(value, { columns: 139, rows: 19 });
+  expect(current).toContain("... 6 more; use oracle-top snapshot");
+  expect(current).not.toContain("日".repeat(50));
+  expect(renderText(value)).toContain("日".repeat(50));
+  for (const line of current.split("\n"))
+    expect(displayWidth(line)).toBeLessThanOrEqual(138);
+  value.currentSessions[6]!.model = "gpt-6-astra";
+  value.submittedMessages = Array.from({ length: 7 }, (_, index) => ({
+    model:
+      index === 0
+        ? "gpt-6-astra"
+        : index === 6
+          ? "z".repeat(120)
+          : `usage-${index}`,
+    effort: "high",
+    submitted24h: 1,
+    submitted7d: 1,
+  }));
+  expect(renderText(value, { columns: 120, rows: 19 })).toBe(
+    "Terminal too narrow: need 141 columns. Use oracle-top snapshot.",
+  );
+  const usage = renderText(value, { columns: 141, rows: 19 });
+  expect(usage).not.toContain("z".repeat(120));
+  expect(renderText(value)).toContain("z".repeat(120));
+  for (const line of usage.split("\n"))
+    expect(displayWidth(line)).toBeLessThanOrEqual(140);
+  expect(value.currentSessions[6]!.slug).toBe("current-6");
+  expect(value.submittedMessages[6]!.model).toBe("z".repeat(120));
+});

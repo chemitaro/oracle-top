@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P09はcheckpoint済み。P10の実装・自動検証が成功し、primaryも全257テスト・最新installed CLI／PTY・性能とのコード一致・文書を照合しました。native画面／shell入力とコードレビューは未完了で、製品受け入れ全体は未完了です。
+状態: P02〜P10の初回候補はcheckpoint済み。コードレビューで指摘された大量行の描画失敗と、性能測定harnessの早期タイマー復帰を修復しました。primaryの全261テスト・installed CLI／PTY・通常ホスト上の正式性能は成功です。修復候補の再レビューとnative画面／shell入力は未完了で、製品受け入れ全体は未完了です。
 
 ## 実装環境と基準
 
@@ -17,7 +17,7 @@
 
 `package.json`は`private:true`、`type:module`、`engines.node:>=24 <25`を固定しました。runtime直接依存は`json5@2.2.3`と`string-width@8.3.0`の2つだけです。dev依存は採用版のTypeScript、Node型、Vitest、Prettier、Ajvだけとし、全直接依存をexact version、解決結果をlockfileへ固定しました。
 
-TypeScriptはstrictなNodeNext ESM設定を使い、buildは`src`から`dist`へJavaScriptと型宣言を出力します。`test=vitest run`、`typecheck=tsc --noEmit`、`build=tsc -p tsconfig.build.json`、`check=format:check→typecheck→test→build`を定義しました。PrettierはTypeScript・JSON・YAMLを対象とし、正本文書と配布済みplanning artifacts、生成物、scratchを対象から除外します。CIはP02で確認したinstall・format・typecheck・buildを実行します。製品テストのCI追加は後続工程で行います。
+TypeScriptはstrictなNodeNext ESM設定を使い、buildは`src`から`dist`へJavaScriptと型宣言を出力します。P02時点では`test=vitest run`、`typecheck=tsc --noEmit`、`build=tsc -p tsconfig.build.json`、`check=format:check→typecheck→test→build`を定義しました。P08でbuilt CLI検証を追加した後の現行checkとCIは、distを先に用意する`format:check→typecheck→build→test`です。P08節のfresh検証へ対応し、正式Planもこの順序へ同期しました。PrettierはTypeScript・JSON・YAMLを対象とし、正本文書と配布済みplanning artifacts、生成物、scratchを対象から除外します。CIはP02で確認したinstall・format・typecheck・buildを実行します。製品テストのCI追加は後続工程で行います。
 
 ### 実行証拠
 
@@ -584,7 +584,7 @@ primaryは製品・testの全差分を読み、元cycles.logとexits.txtから17
 
 P09 checkpoint SHAは`33b6b38330206f626196ae95cd17e11a4b041025`です（primaryの完全差分・元17pair・独立222件check・HTML確認後にcommit済み）。この担当はGit書込み、外部分析、追加agentを実行していません。P10の導入済みtarball、built CLIの実PTY／native TTY、正式60秒CPU／RSS／p95、安全性全受け入れは未検証です。Node実adapter接続の合成child検証を実端末の画面・復元確認とは扱いません。製品受け入れ全体は未完了です。
 
-## P10 — 配布・PTY・read-only・性能（局所実装・自動検証完了）
+## P10 — 配布・PTY・read-only・性能（初回候補f33402aの記録）
 
 開始時は`main`／`33b6b38330206f626196ae95cd17e11a4b041025`／clean、origin/main比ahead8を確認しました。GPT 6.1 Sol / High、`tdd`と`use-workbench`を継続しています。primary所有のREADME／HTML／canonical文書／work-plan／.gitignoreを保持し、stage／commit／push、外部分析、追加agent、nativeアプリ操作を実施していません。
 
@@ -730,7 +730,7 @@ sourceSHAは`eb72f81253886d7af827fef59f3314b4ecfd5bcb516c6ade34ddd2348da12e8a`�
 
 native端末はprimaryのCUAでTerminal／Ghosttyがアプリ安全規則により拒否され、未検証を維持しています。この担当から別経路で操作していません。最終受け入れ表・納品artifact・文書全体・Gitはprimary所有です。このleafは2026-10-01 04:03 JST時点で局所実装・自動検証を完了してSTOPします。HEADはmain／33b6b38330206f626196ae95cd17e11a4b041025のままで、製品source／distの上記hashを固定します。native画面／shell入力、primaryの最終A01〜A49表・独立review／checkpoint・文書／artifact同期は残っています。
 
-## Primaryによる最終自動検証とA01〜A49の照合
+## Primaryによる初回候補の自動検証とA01〜A49の照合
 
 primaryはP10の製品差分、開発harnessとテストを読み、元cycles.logを独立に解析しました。対象各1件のAssertionError・Red1と後続の同名Green0が27組あり、ReferenceErrorの1試行を除外し、元ログhashがleafの記録と一致することを確認しました。証拠は`.workbench/p10/primary-cycles-proof.json`です。初回pass回帰をRedへ数えていません。
 
@@ -744,7 +744,7 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 
 最新tarballは`928dd23cc5d6a07d5df40c15523f3c4192bf57097a31bf448f74058738686fcb`です。36fileのallowlistを通り、個人データを含みません。sourceSHA `eb72f81253886d7af827fef59f3314b4ecfd5bcb516c6ade34ddd2348da12e8a`、distSHA `7cd1adf9991a20ce9508fd1c905054bd7aae673927a9146f4e15d4d5e186ee05`は、primaryの再build・最新導入・正式性能の3者で一致しました（primary-identity.json）。README変更やmtimeだけの変更で同じ実行コードの性能を再測定せず、正式60秒の成功をこの一致から対応付けます。
 
-以下は名称だけでなく、各公開境界のliteral assertionと全257件の成功、導入CLI／PTYの実行証拠に照合した表です。`pass`は記載した境界の検証成功を示します。`一部／未検証`の4ケースは、実端末の目視・shell入力と、それを含む最終完了条件が残るためです。製品の未修正不具合4件という意味ではありません。R-ID／D-IDの対応はacceptance.mdを正本とします。
+以下は名称だけでなく、各公開境界のliteral assertionと修復後の全261件の成功、導入CLI／PTYの実行証拠に照合した表です。A26は後段の修復後・通常ホスト上の正式測定へ更新しました。`pass`は記載した境界の検証成功を示します。`一部／未検証`の4ケースは、実端末の目視・shell入力と、それを含む最終完了条件が残るためです。製品の未修正不具合4件という意味ではありません。R-ID／D-IDの対応はacceptance.mdを正本とします。
 
 | Case | 状態 | 検証境界・主要期待値／証拠 |
 |---|---|---|
@@ -773,7 +773,7 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 | A23 | pass | render：OSC／ESC／C0／C1／CRLF／TAB／Bidiを無害化、入力由来の単一セルを保持 |
 | A24 | pass | package／installed CLI：Node24 ESM bin、runtime直接依存2つ、公開36fileだけ |
 | A25 | pass | tui：scan5s／interval2sは次6s、同時scan1、drain中も重複採取なし |
-| A26 | pass | 正式製品60s：1000×16384bytes、CPU4.5681%、RSS111.4688MiB、p95117.1612ms、30scan、scan/read peak1 |
+| A26 | pass | 修復後の通常ホスト上で正式製品60s：1000×16384bytes、CPU4.7249%、RSS111.7813MiB、p9597.6203ms、30scan、scan/read peak1 |
 | A27 | 一部／未検証 | tui＋PTY：q0／ETX・SIGINT130／SIGTERM143／例外1、raw flags・cursor・alternate復元はpass。実端末の画面・shell入力は未検証 |
 | A28 | 一部／未検証 | 全check、CLI6／PTY9、readonly、性能、README／HTMLはpass。native確認とレビュー完了までR32全体をpassにしない |
 | A29 | pass | cli／installed bin：非TTY既定はstdout空・exit2、snapshot JSONはexit0 |
@@ -800,6 +800,38 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 
 実端末確認には、最新installed receiptとtarball／dist一致を先に検査する`.workbench/p10/native-run.mjs`、寸法・終了4経路を記載した`native-check.md`を用意しました。これは未実施の開発用手順です。Terminal／GhosttyへのComputer Useがアプリ安全規則で拒否されているため、別経路で回避しません。操作許可の変更か、人間の実施結果を待ちます。自動PTYの成功を目視・shell入力の成功へ転記しません。
 
+## 初回コードレビューと修復・最新自動検証
+
+P10初回checkpointは`f33402a8dc664ff02f63c0b09bf9280ab8c64104`です。ユーザー指定の`f5b745107f09421655e05c92c8aef7603e9ee68d`を基準/merge-baseとして、全9コミット・55ファイルを2つの独立したread-only agentがレビューしました。両結果完成後にprimaryがanalyze-review-findingsを適用しました。全文・authority・対応判断は[コードレビュー](code-review.md)に記録します。
+
+StandardsのST-1は、P06で2つの例外Redがassertionを経由しなかった既知の履歴逸脱です。元ログと除外記録を保持し、履歴を人工的に作り直しません。ST-2〜4は重複処理・変数名のheuristicで、現行の製品保証違反を示す証拠はありません。保守の検討事項として記録しました。SpecのSP-1はnative未検証、SP-2は大量行のMath.max引数展開による描画失敗、SP-3はcheck順序の文書同期漏れです。
+
+GPT 6.1 Sol / HighがSP-2を`src/render/text.ts`と`tests/render.test.ts`の2pathsで修復しました。幅の計算をheader起点の反復maxへ変更し、行数上限やcacheを追加しません。current/usage各130000行の公開renderTextを`not.toThrow`で検証し、RangeErrorを捕捉した真正AssertionError/Red1→同名Green0を確認しました。全行/first・last sentinel/全警告、120×32の各6データ行＋129994more×2、31行/119cell上限、Snapshot不変をliteralで確認しています。不可視の末尾に広いUnicodeの保護列を置く回帰は初回passとして分離しました。
+
+性能測定で31scanが入ったため、primaryの追加認可で開発用`scripts/performance.mjs`と`tests/performance.test.ts`を修復しました。`waitUntil(target,{now,sleep})`はタイマーから戻った後もmonotonic targetへ達したか確認し、ceil/min1msで再待機します。next grid/60秒/予算は維持します。fake clock1999.25→1999.75→2000の公開結果、literal waits[1,1]/finalNow2000はAssertionError/Red1→同名Green0。60000末端は初回pass回帰です。CPUのuser/systemの有限なphase計数を加えましたが、合否は全process/全threadのCPUです。
+
+primaryは元2pairのAssertionError/選択1failed→1passed、26ログのSHA、5 tested fileのSHAを独立照合しました。原ログとSTOP証拠は`.workbench/p10/review-repair/proof.json`/proof.md、primaryの検証はprimary-proof.jsonへ保持します。primary自身の`npm run check`もexit0・261件/13suiteでした（primary-check.log）。SP-3は、P08でfresh検証済みのformat→typecheck→build→testへ正式Planを同期し、P02の旧定義をreportの履歴として明示しました。製品契約と実施する検査を変えていません。
+
+### 修復後の正式測定と実行環境の診断
+
+| 実行環境/測定harness | CPU | peak RSS | p95 | scan数 | exit/判定 |
+|---|---:|---:|---:|---:|---|
+| Codex sandbox、期限再検査前 | 5.5663% | 111.4063MiB | 113.7418ms | 31 | 1/不合格、perf.json |
+| Codex sandbox、期限再検査後 | 5.6175% | 111.1406MiB | 113.6335ms | 30 | 1/不合格、perf-wait.json |
+| 通常ホスト、同じ期限再検査後 | 4.7249% | 111.7813MiB | 97.6203ms | 30 | 0/予算内、perf-host.json |
+
+同じ最新製品、1000件×16384bytes、2秒/60秒、同じread-only guard、worker起動を含む全thread CPU/process RSSです。前2つの失敗を削除・値補正しません。描画の同一snapshot A/B/A/Bは80描画でCPU152613/148084/145421/146338µs、出力同一で、幅修復が採取CPU増加の原因である証拠はありませんでした。
+
+採取system時間が主だったため、primaryはdiagnosing-bugsを用い、合成データ・同じ製品・同じ8016readで8scanの実行環境A/B/Aを比較しました。Codex sandbox→通常ホスト→Codex sandboxの定常1scan system平均は46848.7→28906.0→47597.3µs、user平均は30033.4→29665.7→30540.9µs。Snapshot hash、readPeak1、buffer確保16388bytesが一致しました。これは原因診断で、正式60秒の成功に転用していません。context-probe.mjsと3ログは診断資料として保持します。製品の変更や安全検査の削除はありません。
+
+この環境差を検証する正式60秒を、通常ホスト実行（Codexのsandbox_permissions=require_escalated）で実施しました。元session55515がexit0で完了し、CPU4.7248946028%（user1443414+system1391697µs/wall60003.687666ms）、peak RSS111.78125MiB、p9597.620292ms、initial98.607ms、30scan、scan/read peak1、read30060回、buffer実確保16388bytes、入力不変です。通常のNode CLIを実行する環境の測定であり、製品自身のread-only能力やbudgetを変えていません。全process CPUの算出、fixture生成/前後inventoryの測定除外、起動の包含は同じです。
+
+最新sourceSHAは`ec5d3d95c0b95e5450f27c9429f6c8114074edb851202246492afa5fa7aef8ff`、distSHAは`94e0f9e5ea456599219588cce987eef88044ed7c6398597c6fa7a21e8aac2917`です。primaryはdirectory/nullを含む独立preorder inventoryで、現在・latest installed・正式host測定の両SHA一致を照合しました。最初の独立hash照合はdirectory/null行を除いた方法誤りで失敗し、inventory定義へ合わせて修復しました。製品ファイルの不一致ではありません。harness SHAは`773d3aa52459ad2d1594c42c55fd4b305a3a1fc0bca4c3bcbb776c324cc5d5df`です。
+
+最新READMEと同じ配布tarballをprimaryが再pack/offline導入し、installed CLI6件と同じpackageのPTY9件がexit0でした（primary-smoke-cli.log/primary-smoke-tty.log）。36fileのallowlist、runtime直接依存2つ、read-only、source/distの正式host測定との一致を確認しています。最新tarball SHA256は`006220a081a1a8ca4310c2ee30bc63f5d144b7facf3db421fc19f3e95ee2cbc4`で、Git管理外の`artifacts/oracle-top-0.1.0.tgz`へ同じbytesを配置しました。global install/publish/pushは実施していません。
+
+説明HTMLは更新後の既定validatorがexit0で、inline SVG1図、拡大/click/keyboard/focus復元を確認しました（primary-html.log）。文書ZIP/manifestを同期して修復checkpointを作り、そのSHAで2軸再レビューします。native画面/shell入力は引き続き未検証です。過去の4.5681%を修復後の性能証拠へ流用していません。
+
 ## 残工程と再開条件
 
 | 工程 | 状態 | 残る証拠 |
@@ -811,6 +843,6 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
 | P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
 | P09 | checkpoint済み | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
-| P10 | 局所自動検証成功、primary review前 | native画面／shell入力、最終A表・review・checkpoint・文書／artifact同期 |
+| P10 | 初回checkpoint済み、レビュー修復・最新自動検証成功 | native画面／shell入力、修復checkpoint・再review・最新文書／artifact同期 |
 
 P10はP09 checkpoint後にbranch／HEAD／worktreeと所有範囲を再確認して開始しました。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

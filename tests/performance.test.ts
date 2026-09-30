@@ -20,6 +20,32 @@ function env() {
     ORACLE_BROWSER_PROFILE_DIR: join(root, "profile"),
   };
 }
+test("waits-until-grid-after-early-timer-wake", async () => {
+  const code = `import {waitUntil} from './scripts/performance.mjs';
+    const clock=[1999.25,1999.75,2000], waits=[];
+    let current=clock.shift();
+    await waitUntil(2000,{now:()=>current,sleep:async ms=>{waits.push(ms);current=clock.shift();}});
+    console.log(JSON.stringify({waits,finalNow:current}));`;
+  const result = await execute(
+    process.execPath,
+    ["--input-type=module", "-e", code],
+    { env: env() },
+  );
+  expect(JSON.parse(result.stdout)).toEqual({ waits: [1, 1], finalNow: 2000 });
+});
+test("waits-through-final-measurement-deadline", async () => {
+  const code = `import {waitUntil} from './scripts/performance.mjs';
+    const clock=[59999.25,59999.75,60000], waits=[];
+    let current=clock.shift();
+    await waitUntil(60000,{now:()=>current,sleep:async ms=>{waits.push(ms);current=clock.shift();}});
+    console.log(JSON.stringify({waits,finalNow:current}));`;
+  const result = await execute(
+    process.execPath,
+    ["--input-type=module", "-e", code],
+    { env: env() },
+  );
+  expect(JSON.parse(result.stdout)).toEqual({ waits: [1, 1], finalNow: 60000 });
+});
 test("creates-thousand-bounded-synthetic-metadata-files", async () => {
   const result = await execute(
     process.execPath,

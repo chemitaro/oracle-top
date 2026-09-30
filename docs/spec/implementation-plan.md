@@ -49,7 +49,9 @@ npm run build
 node --input-type=module -e "import('./dist/model/dashboard.js')"
 ```
 
-**完了条件：** Node 24でESM出力でき、ESMをimportでき、runtime直接依存が2つであることです。`test=vitest run`、`typecheck=tsc --noEmit`、`build=tsc -p tsconfig.build.json`、`check=format:check→typecheck→test→build` を固定します。
+**完了条件：** Node 24でESM出力でき、ESMをimportでき、runtime直接依存が2つであることです。`test=vitest run`、`typecheck=tsc --noEmit`、`build=tsc -p tsconfig.build.json`、`check=format:check→typecheck→build→test` を固定します。
+
+P08で追加したbuilt CLIの検証はdistを必要とするため、checkとCIはtestより先にbuildします。これはP08で新規checkout相当の隔離検証を経て採用した順序の同期です。実施する検査と製品の契約は変えません。
 
 **Checkpoint：** `build: establish minimal node24 esm toolchain`
 
