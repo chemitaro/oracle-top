@@ -2,7 +2,7 @@
 
 OracleのChatGPTブラウザ実行の保存状態を表示する、読み取り専用CLIダッシュボードです。
 
-正式仕様に従い、GPT 6.1 Sol / HighでTDD実装しました。全261テスト・13suite、型検査、ビルド、隔離導入CLIの6ケース、自動PTYの9ケース、読み取り専用検査が通っています。1,000件×16KiBを2秒間隔で60秒採取した通常ホスト上の性能は、1コア換算平均CPU 4.72%、peak RSS 111.78MiB、採取p95 97.62msで予算内です。コードレビューで見つかった大量行の描画失敗を修正しました。実macOS端末での目視・shell入力確認は未検証で、製品受け入れ全体は未完了です。証拠と残項目は[実装報告](docs/spec/implementation-report.md)、指摘と対応は[コードレビュー](docs/spec/code-review.md)に記録します。
+正式仕様に従い、GPT 6.1 Sol / HighでTDD実装しました。シェルlauncherとTUI表示の追加変更を含む全265テスト・14suiteを用意しています。検証結果は[実装報告](docs/spec/implementation-report.md)に記録します。変更前の候補は隔離導入CLIの6ケース、自動PTYの9ケース、読み取り専用検査も通過しました。その通常ホスト上の1,000件×16KiB・60秒性能は、1コア換算平均CPU 4.72%、peak RSS 111.78MiB、採取p95 97.62msで予算内です。ユーザーによる実起動の確認を受領しています。実端末の寸法別・終了経路別の目視記録を含む残項目と、指摘・対応は[コードレビュー](docs/spec/code-review.md)にも記録します。
 
 ## 目的
 
@@ -30,6 +30,20 @@ node dist/cli.js snapshot --json
 引数なしのTUIは2秒間隔で更新し、`q`で終了します。`--interval`は単位付きの正整数（`ms`／`s`／`m`）で、1〜60秒の範囲を指定できます。TUIにはstdinとstdoutの両方がTTYである端末が必要です。パイプやリダイレクトでは`snapshot`を使用してください。textはANSIなし、JSONは一文書で、どちらも全行・全警告を保持します。
 
 `--help`／`-h`、`--version`／`-V`も使用できます。上記以外の引数や組合せは受け付けません。
+
+## このPCのグローバルコマンド
+
+シェルスクリプト`bin/oracle-top`を、既存の自作コマンドと同じ`/usr/local/bin/oracle-top`から起動できます。どのディレクトリからでも次を実行します。
+
+```bash
+oracle-top
+oracle-top --interval 5s
+oracle-top snapshot --json
+```
+
+launcherはリンク先のソースディレクトリを解決し、`exec`でビルド済みCLIを起動します。このPCのnodenvからプロジェクト指定のNode.js 24を選び、起動元にある別のNodeバージョン指定の影響を避けます。nodenvがない環境ではPATHのNode.js 24を使います。引数、起動元の作業ディレクトリ、HOME、Oracle用環境変数を保持します。自動buildや設定変更は行いません。ソースを移動した場合はリンクを更新し、ソース変更後は`npm run build`を実施してください。
+
+TUIはヘッダー・現在一覧・信頼性・送信表の4領域です。下部の説明文と警告件数の案内を表示せず、空いた行を表へ使用します。数字の意味はこのREADME、警告の詳細は`snapshot`／`snapshot --json`で確認できます。
 
 ## 配布パッケージからの導入
 

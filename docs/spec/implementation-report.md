@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。コードレビューで指摘された大量行の描画失敗と、性能測定harnessの早期タイマー復帰を修復しました。primaryの全261テスト・installed CLI／PTY・通常ホスト上の正式性能、修復候補の2軸再レビューは成功です。内部実行PTYでのリサイズ・終了4経路・端末設定復元・shell入力も確認しました。native端末画面の描画・復元は未検証で、製品受け入れ全体は未完了です。
+状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。ユーザーの実起動確認後、グローバル用シェルlauncherとTUI下部文章の削除を追加しました。最新の全265テスト・14suite、format/typecheck/build、配布CLI6件・PTY9件、配置済みグローバルコマンドのPTY5件は成功です。元の内部対話PTYとユーザーの実起動確認も記録しています。寸法・終了経路ごとのnative画面記録は完了扱いせず、追加変更の検証・レビュー記録を後段へ追記します。
 
 ## 実装環境と基準
 
@@ -765,17 +765,17 @@ primaryはP10の製品差分、開発harnessとテストを読み、元cycles.lo
 | A15 | pass | aggregate：24H／7D下限とnowを含み、下限−1ms／now＋1msを指定窓から除外 |
 | A16 | pass | aggregate：同conversation IDの別directoryを各1件、7D0行を非表示 |
 | A17 | pass | aggregate：model／effort固定優先順、その他はraw UTF-16順、保存case保持 |
-| A18 | pass | render／installed text：Oracle-only、direct ChatGPT除外、requested値・代理値の注記 |
+| A18 | pass | 単発text／READMEにOracle-only、直接利用除外、requested値・代理値を明記。最新ユーザー指示に従いTUI下部文章・警告案内は表示しない |
 | A19 | pass | aggregate／render：同profile current→env→config→3、4/3を保持しtext133.3% |
-| A20 | pass | render：5領域、successだけ、quota領域なし |
+| A20 | pass | render：TUIは4領域、successだけ、quota領域なし。ユーザー指定の下部注記削除を反映 |
 | A21 | 一部／未検証 | renderの文字幅・優先短縮はpass。内部PTYの80/120列でも日本語・結合文字・ZWJ emoji全文と保護列のセル位置を確認。実端末の字形は未検証 |
 | A22 | pass | render／cli：表別省略件数。単発text／JSONは省略せず、installed CLIでも全件 |
 | A23 | pass | render：OSC／ESC／C0／C1／CRLF／TAB／Bidiを無害化、入力由来の単一セルを保持 |
-| A24 | pass | package／installed CLI：Node24 ESM bin、runtime直接依存2つ、公開36fileだけ |
+| A24 | pass | 最新package／installed CLI：Node24 ESM bin、runtime直接依存2つ、公開36fileだけ。source shell launcherは/usr/local/binから任意cwdで起動 |
 | A25 | pass | tui：scan5s／interval2sは次6s、同時scan1、drain中も重複採取なし |
-| A26 | pass | 修復後の通常ホスト上で正式製品60s：1000×16384bytes、CPU4.7249%、RSS111.7813MiB、p9597.6203ms、30scan、scan/read peak1 |
+| A26 | pass | 追加変更後の通常ホスト上で正式製品60s：1000×16384bytes、CPU4.6761%、RSS111.7344MiB、p9594.0583ms、30scan、scan/read peak1、入力不変 |
 | A27 | 一部／未検証 | tui＋PTY：q0／ETX・SIGINT130／SIGTERM143／例外1、復元制御出力はpass。内部の対話shellでも4経路のstty完全一致、入力・削除・実行を確認。実端末画面での復元は未検証 |
-| A28 | 一部／未検証 | 全check、CLI6／PTY9、内部対話PTY、readonly、性能、README／HTML、2軸レビューと修復は完了。native画面確認までR32全体をpassにしない |
+| A28 | 一部／未検証 | 最新265件/check、CLI6／PTY9／global PTY5、readonly、README／HTML、既存レビュー修復は成功。ユーザーの実起動確認を受領。細目native画面記録までR32全体をpassにしない |
 | A29 | pass | cli／installed bin：非TTY既定はstdout空・exit2、snapshot JSONはexit0 |
 | A30 | pass | json-reader／collectors／integration：配下symlink、1MiB+1、消失を隔離。log・他profileのopen0 |
 | A31 | pass | aggregate：created8日前・completed1時間前はreliability対象／usage窓外 |
@@ -865,6 +865,38 @@ Codexのアプリterminalを開く`open_in_codex`はqueuedで、内部実行PTY�
 
 製品・tests・tracked harness・README/HTML・配布packageは今回変更していません。既存の261件/CLI6/PTY9/正式性能/レビュー証拠を保持し、追加した内部PTYの結果と文書ZIP/manifestだけを同期します。native画面確認用のprivate手順は、短いUnicode slugを含む別receiptを指定できる状態に更新しました。
 
+## グローバルコマンドと下部文章の削除（2026-10-01）
+
+ユーザーの「動作確認できました」を実起動確認として受領しました。続く変更指示は、シェルスクリプトをこのPCで普段使うbinへ配置して任意cwdから`oracle-top`で起動することと、ダッシュボード下部の説明文・警告件数の案内を全て消すことです。最新指示をR-21/R-25・設計・受け入れ条件・実装計画へ同期しました。TUIは4領域、単発textとJSONには従来の意味の注記・全警告が残ります。集計や保存値、read-only/offlineの境界は変えていません。
+
+`bin/oracle-top`はPOSIX shellで絶対/相対リンクを解決し、ソースのbuilt CLIを`exec`します。引数・caller cwd・HOME・Oracle用環境変数を保持します。外部cwdのPATHはNode26を選ぶ実証があったため、nodenvが利用できればプロジェクト指定のNode24を`nodenv which node`で解決します。nodenvがなければPATHのNode24を使います。起動中の自動build、global install、設定書換え、Oracle起動は行いません。ユーザーが今回指定したシェルコマンド配置は`/usr/local/bin/oracle-top`→このソースfileのリンクです。既存のcommit-codex等と同じbinを選び、既存fileのないことを確認して上書きせず配置しました。以前の「global install未実施」は前候補の履歴で、この配置には最新ユーザーの明示許可があります。
+
+| 正式なRed→Green | Red | Green |
+|---|---|---|
+| launches-from-another-directory-through-a-shell-command-link | missing launcherの公開結果をAssertionError、選択1failed、exit1 | 同名1passed、exit0 |
+| omits-tui-footer-and-keeps-full-snapshot-diagnostics | footerが残るAssertionError、選択1failed、exit1 | 同名1passed、exit0 |
+| uses-project-runtime-when-caller-node-is-unavailable | callerの不適切なnode選択を公開result exit44で捕捉、AssertionError/exit1 | 同名1passed、exit0 |
+
+launcherの別cwd・多段リンク・snapshot引数・相対Oracleパス、callerのNode指定を切り離すケースは回帰として初回passを記録しました。これらを人工的なRedには数えません。runtime最初の2試行も初回passで、nodenv shimがJS fileの位置からprojectを選ぶ経路だったため、PATHで直接選ぶnodeの問題を再現していません。外部runtime-selectorをsystem boundaryのfixtureで代替した3番目の正式pairに分離しました。最初のlauncher実行ではログ保存先を作り忘れてteeが失敗し、保存先を修正した後の同名Redを正式証拠にしました。
+
+viewportだけfooterを空にし、以前の固定行数をbodyへ戻しました。current10件/usage9件・120×24ではcurrent5データ行＋5more、usage4データ行＋5moreです。高さの最小境界も注記を含まない固定行数から再計算します。current/usage各130000行では120×32のcurrent9データ行/usage8データ行と129991/129992moreを確認しています。全件snapshot、保護列・grapheme・最終行/列の余白、変更しないSnapshotを維持しました。旧footerを前提としたresizeテスト1件が最初の全checkで失敗し、120×24でcurrent10件を全件表示できる新仕様にassertionを同期しました。修正前のcheck.logを保持し、製品の退行として黙って消していません。
+
+| 最新の検証 | 結果と証拠 |
+|---|---|
+| npm run check | exit0、format/typecheck/build、265件・14suite、check-final.log |
+| 配布CLI | Node24、36file allowlist、offline導入、6件、入力tree/内容/mtime/mode不変、smoke-cli-node24.log |
+| 配布TUIのPTY | 120×32/80×24、幅/高さ不足、ETX/SIGINT/SIGTERM、連続resize、例外の9件、全て期待exit・端末設定復元、smoke-tty.log |
+| 配置済みglobal command | /private/tmpから120×32/80×24・q0/ETX130/SIGTERM143・連続resizeの5件、全footer不在、端末設定復元、入力不変、global-pty.json |
+| global runtime | /private/tmpと別smoke cwdで実Node v24.14.0、process.cwdはcallerのまま。調整前のNode26選択も区別して記録 |
+| 説明HTML | sandboxのChrome起動15秒失敗を保持。同じvalidatorの通常host実行はexit0、SVG1図・zoom/keyboard/focus復元成功、html-host.log |
+| 最新製品の正式性能 | 通常host・Node24、1000件×16384bytes・2秒周期・60秒、CPU4.6761%、peak RSS111.7344MiB、採取p9594.0583ms、30scan、scan/read peak1、入力不変、perf.json／perf-host.log、exit0 |
+
+新しい配布・PTYは`.workbench/followup-global/smoke-project`の独立したコピーと合成fixtureで実行し、従来P10のreceipt・fixture・tarballは保持しました。コピーしたsrc/distは正本とbytes一致を照合しています。最初の配布検証はそのcwdで選ばれたNode26をharnessのNode24 assertionが拒否し、製品合格/TDD Redに数えていません。同じharnessを実Node24で再実行した結果が上表です。
+
+下部文章の削除によって表示行数が変わったため、最新built製品を正式性能harnessで再測定しました。wall60002.131125ms、CPU user1422211＋system1383574µs、initial91.643417ms、read30060回、buffer実新規確保16388bytesです。fixture生成と前後inventoryは測定外、Worker起動と全thread CPU／process RSSは測定内です。予算やguard、入力容量、実行経路は変えていません。配布検証と正式性能のsource/dist SHAは現在の正本に一致しています。
+
+今回のsourceSHAは`a9277feaad2416b64a146f786fd6392ffb886bae38be07daaf1cc747f6a7dc54`、distSHAは`d6b47c46ee0710222fab2b26b33817f5a804bb5b741adfee32c3dd42d1cf45b5`、shell launcher SHA256は`3da1c885c7417c54171f47711092b9a9284a01d15028615d433bf24e6bb3db91`です。最新tarballは`3483db39fd5dc444d68422935454a9370d77bb5d9dd2794000d083f417075e99`です。元logとproofは`.workbench/followup-global`に保持し、private fixture・ライブmetadataはGitへ入れません。
+
 ## 残工程と再開条件
 
 | 工程 | 状態 | 残る証拠 |
@@ -876,6 +908,6 @@ Codexのアプリterminalを開く`open_in_codex`はqueuedで、内部実行PTY�
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
 | P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
 | P09 | checkpoint済み | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
-| P10 | 実行コードのcheckpoint済み、レビュー修復・2軸再レビュー・自動検証・内部対話PTY成功 | native画面の描画・復元。45ケースpass、A21/A27/A28/A47は一部／未検証 |
+| P10 | 元のcheckpoint・レビュー修復済み。追加変更の265件、配布CLI6／PTY9、global PTY5、正式性能は成功 | 追加変更のレビュー記録・checkpoint。細目native画面の描画・復元は別記録。45ケースpass、A21/A27/A28/A47は一部／未検証 |
 
 P10はP09 checkpoint後にbranch／HEAD／worktreeと所有範囲を再確認して開始しました。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。

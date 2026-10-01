@@ -96,24 +96,22 @@ export function renderText(
     "SUBMITTED MESSAGES BY MODEL / EFFORT",
     tableLine(usageHeader, usageWidths),
   ];
-  let bottom = [
-    "",
-    "Oracle-only submission-operation counts; direct ChatGPT usage is excluded.",
-    "Requested model/effort. Slots: selected profile; sessions: selected home.",
-    ...(snapshot.dataWarnings.length > 0
-      ? [
-          "Values from readable records only",
-          ...(viewport
-            ? [
-                `Warnings (${snapshot.dataWarnings.length}): use oracle-top snapshot`,
-              ]
-            : snapshot.dataWarnings.map(
+  let bottom = viewport
+    ? []
+    : [
+        "",
+        "Oracle-only submission-operation counts; direct ChatGPT usage is excluded.",
+        "Requested model/effort. Slots: selected profile; sessions: selected home.",
+        ...(snapshot.dataWarnings.length > 0
+          ? [
+              "Values from readable records only",
+              ...snapshot.dataWarnings.map(
                 (warning) =>
                   `${warning.source} ${warning.code}${"sessionId" in warning ? ` ${warning.sessionId}` : ""}`,
-              )),
-        ]
-      : []),
-  ];
+              ),
+            ]
+          : []),
+      ];
   if (!viewport)
     return [
       ...top,

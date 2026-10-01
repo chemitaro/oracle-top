@@ -54,11 +54,11 @@ STATUS | ELAPSED | PROJECT | SESSION / SLUG | MODEL | EFFORT
 | R-18 | 送信回数は `startedAt`、fallbackとして `createdAt` を使い、24H／7Dを同時集計します。 |
 | R-19 | model／effortの保存値の組で集約し、7D=0の行を出しません。保存ディレクトリを単位として数え、conversation IDでは統合しません。 |
 | R-20 | model固定順とeffort固定順を使い、回数順・モデル能力推定順にはしません。 |
-| R-21 | Oracle経由の保存記録のみであること、直接ChatGPT利用を含まないこと、requested値と送信操作代理値であることを明記します。 |
+| R-21 | Oracle経由の保存記録のみであること、直接ChatGPT利用を含まないこと、requested値と送信操作代理値であることはREADMEと単発textへ明記します。TUI下部の説明・警告案内は表示しません（2026-10-01のユーザー変更指示）。 |
 | R-22 | スロットは有効なv1台帳の `leases.length` です。PID、heartbeat、stale、重複を使った除外はしません。 |
 | R-23 | maxは同profileのcurrent保存値→env→ユーザー設定→3の順です。競合・所属不明の規則を設計で固定します。 |
 | R-24 | utilizationはactive/maximumです。100%超も数値は保持し、棒だけをclampします。独自の正常・逼迫ラベルはありません。 |
-| R-25 | ヘッダー、現在一覧、24H reliability、24H／7D送信表、注記の5領域を一画面に表示します。 |
+| R-25 | ヘッダー、現在一覧、24H reliability、24H／7D送信表の4領域を一画面に表示します。TUI注記領域は削除します（2026-10-01のユーザー変更指示）。 |
 | R-26 | project／slugを先に縮めます。保護列が収まらない幅ではサイズ不足表示、高さ不足では表ごとの省略件数を表示します。 |
 | R-27 | すべての出力は `schemaVersion: 1` の同じSnapshotから生成します。JSONにはTUIの省略を反映しません。 |
 | R-28 | 入力由来の端末制御を無害化し、JSONを安全にserializeします。保存値自体のalias統合はしません。 |

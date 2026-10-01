@@ -49,9 +49,9 @@
 | A15 | R-18 | dashboard | 24H下限、7D下限、nowは含む。下限-1ms/now+1ms除外 | P06 |
 | A16 | R-19 | dashboard | 異なるsessionが同じconversationIdでもそれぞれ1。7D0行非表示 | P06 |
 | A17 | R-20 | dashboard | gpt-6-astra→gpt-5.6-sol→その他raw昇順、effort固定順 | P06 |
-| A18 | R-21 | text | footerにOracle-only、直接利用除外の注記 | P07 |
+| A18 | R-21 | text | 単発text／READMEにOracle-only、直接利用除外の注記。TUIには下部文章・警告案内なし | P07 |
 | A19 | R-23,R-24 | dashboard | 同profile最新max→env→config→3。active4/max3は133.3% | P06 |
-| A20 | R-25 | text | 5領域と成功率だけ、quota領域なし | P07 |
+| A20 | R-25 | text | TUIは4領域と成功率だけ、quota領域なし | P07 |
 | A21 | R-26 | text | 日本語・emoji幅、project/slug優先短縮、保護列保持 | P07 |
 | A22 | R-26,R-27 | text/JSON | TUI高さで省略件数、JSON/snapshotは全行 | P07/P08 |
 | A23 | R-28 | text | slugにESC OSC CR LF TAB→制御列を起こさず単一行 | P07 |
@@ -94,7 +94,7 @@ completed true 2followUpsを24H境界に置けば24H3/7D3。途中error true 2fo
 | A15・A32 | R-18 | 24H／7D下限とnowを含む。下限−1ms、now＋1msは対象窓外。未来elapsedはnullへ修正 | P05・P06 |
 | A16 | R-19 | 同conversation IDの別session2件→2送信 | P06 |
 | A17 | R-20 | gpt-6-astra→gpt-5.6-sol→その他。effortにhighを追加した固定順 | P06 |
-| A18・A20 | R-21／R-25 | 5領域、successのみ、quota領域なし、Oracle-only注記あり | P07 |
+| A18・A20 | R-21／R-25 | TUIは4領域、下部文章・警告案内なし。successのみ、quota領域なし、単発textにOracle-only注記あり | P07 |
 | A19 | R-23／R-24 | 同profile最新max→env→config→3。active4/max3→JSON 4/3、text133.3% | P06 |
 | A21〜A23 | R-26／R-28 | 日本語・結合文字・emoji、幅不足、表別省略、OSC／C1／CRLFを安全化 | P07 |
 | A24 | R-29 | Node24 ESM、pack後のbin起動、runtime直接依存2つ | P02・P08・P10 |

@@ -184,6 +184,8 @@ npm run typecheck
 
 **Checkpoint：** `feat: render one-screen and complete snapshot outputs`
 
+**2026-10-01追加変更：** TUI下部の文章・警告案内を削除し、単発text／JSONの全警告を保持します。`omits-tui-footer-and-keeps-full-snapshot-diagnostics`のRed→Green後、増えた表の行数・高さ境界・省略件数をliteralへ同期して描画回帰を実施します。ソースの`bin/oracle-top`をシェルlauncherとして追加し、シンボリックリンク経由で別cwdから起動・引数転送・caller cwd保持を検証します。このPCではnodenvからプロジェクト指定のNode 24を選び、nodenvがなければPATHのNode 24を使います。`exec`で起動し、自動buildや環境設定変更はしません。既存自作コマンドと同じ`/usr/local/bin/oracle-top`へ、ユーザー承認済みのリンク配置を行います。全check、配布CLI／PTY、配置済みコマンドと正式性能を検証して文書を同期します。
+
 ## P08 — CLI・単発プロセス契約
 
 **依存：** P07です。

@@ -55,3 +55,17 @@ P10初回候補はf33402a8dc664ff02f63c0b09bf9280ab8c64104へcheckpointしまし
 2026-10-01、ユーザーの指示に従い内部実行PTYで対話検証を追加しました。120×32/80×24、幅不足40×24、高さ不足120×10、連続resizeの最終描画を確認し、q0/Ctrl-C130/SIGTERM143/制御例外1は全て期待どおりでした。4経路それぞれでstty完全一致、shellの通常入力・削除・実行が成功しました。別private fixtureの短い日本語・結合文字・ZWJ emojiも80/120列に全文残り、保護列のセル位置と入力inventory不変を確認しました。製品コード/配布packageは変更せず、元logと集計を.workbench/p10/internal-terminalへ保持します。
 
 残る受け入れは実端末画面の描画・復元の目視です。内部PTYは既定TERM=dumbのため、ANSI採取時に起動側だけxterm-256colorを指定しました。端末の実pixelsを得た確認とは区別します。Ghosttyに加えCodexもCUAアプリ安全規則で拒否され、Codex terminal panelのopenはqueuedでした。A21/A27/A28/A47・R32が一部/未検証のため、P10全体と製品納品完了のcheckboxを保留します。許可された画面操作又は準備済み手順による人間の画面観測が必要です。private native-run/native-checkにはUnicodeが見える別fixtureを指定する手順を準備しています。
+
+## 利用者確認後の追加変更（2026-10-01）
+
+ユーザーから「動作確認できました」と実起動の確認を受領しました。詳細な寸法・4終了経路の目視記録とは区別し、この確認を保持します。続く指示は、シェルスクリプトを普段使用するbinへ配置して`oracle-top`で任意cwdから起動することと、TUI下部の文章・警告案内を全削除することです。最新のユーザー指示をR-21/R-25と設計・受け入れ条件へ反映しました。
+
+- [x] シェルlauncherをTDDで追加し、別cwd・リンク・引数転送を検証
+- [x] TUIのfooterをTDDで削除し、表の高さ配分・全件snapshotを回帰確認
+- [x] 全check、最新配布CLI／PTY、文書検証を完了
+- [x] 既存自作コマンドと同じ/usr/local/binへ配置し、グローバル起動・終了を確認
+- [ ] 実装報告・説明HTML・ZIPを同期し、検証済みの変更をcommit
+
+シェルlauncherはnodenvがあればプロジェクト指定のNode 24、なければPATHのNode 24を選び、`exec`でbuilt CLIへ引数をそのまま渡します。callerのcwd・HOME・Oracle用環境変数を変更せず、製品のread-only／offline境界を保持します。TUI注記の削除に合わせて表に行を戻し、数字の意味はREADME、警告の詳細は単発text／JSONで確認できる状態を維持します。
+
+全265件・14suite、format/typecheck/build、最新の隔離導入CLI6件・PTY9件、配置済みグローバルコマンドのPTY5件が成功しました。グローバルコマンドは/private/tmpから起動し、120×32/80×24、Ctrl-C130、SIGTERM143、連続resize、端末設定復元、footer不在、入力不変を確認しました。別cwdからの実Node24選択も照合しました。説明HTMLはsandboxのChrome起動失敗後、同じvalidatorを通常ホストで実行して成功しています。追加変更後の通常ホスト上の正式60秒性能もCPU4.6761%、peak RSS111.7344MiB、採取p9594.0583ms、30scan、scan/read peak1、入力不変で成功しました。文書同期・レビュー・commitを続けます。

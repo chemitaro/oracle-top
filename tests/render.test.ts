@@ -137,7 +137,7 @@ test("shrinks-project-and-slug-before-protected-columns", () => {
   for (const line of text.split("\n"))
     expect(displayWidth(line)).toBeLessThanOrEqual(119);
 });
-test("renders-five-regions-and-provenance-notes", () => {
+test("renders-complete-snapshot-and-provenance-notes", () => {
   const value = snapshot();
   value.dataWarnings = [
     { source: "session", sessionId: "broken-a", code: "INVALID_JSON" },
@@ -177,19 +177,20 @@ test("reports-omitted-rows-per-section", () => {
   }));
   const before = JSON.stringify(value);
   const text = renderText(value, { columns: 120, rows: 24 });
-  expect(text).toContain("... 7 more; use oracle-top snapshot");
-  expect(text).toContain("... 6 more; use oracle-top snapshot");
+  expect(text.match(/\.\.\. 5 more; use oracle-top snapshot/g)).toHaveLength(2);
   for (const name of [
     "current-0",
     "current-1",
     "current-2",
+    "current-4",
     "usage-0",
     "usage-1",
     "usage-2",
+    "usage-3",
   ])
     expect(text).toContain(name);
-  expect(text).not.toContain("current-3");
-  expect(text).not.toContain("usage-3");
+  expect(text).not.toContain("current-5");
+  expect(text).not.toContain("usage-4");
   expect(text.split("\n")).toHaveLength(23);
   expect(JSON.stringify(value)).toBe(before);
   const full = renderText(value);
@@ -328,12 +329,12 @@ test("uses-size-messages-and-reserves-last-row-and-column", () => {
   );
   for (const rows of [0, 1])
     expect(renderText(value, { columns: 120, rows })).toBe("");
-  expect(renderText(value, { columns: 120, rows: 17 })).toBe(
-    "Terminal too short: need 18 rows. Use oracle-top snapshot.",
+  expect(renderText(value, { columns: 120, rows: 14 })).toBe(
+    "Terminal too short: need 15 rows. Use oracle-top snapshot.",
   );
   expect(
-    renderText(value, { columns: 120, rows: 18 }).split("\n"),
-  ).toHaveLength(17);
+    renderText(value, { columns: 120, rows: 15 }).split("\n"),
+  ).toHaveLength(14);
 });
 test("gives-odd-body-row-to-current-and-redistributes-unused-space", () => {
   const value = snapshot();
@@ -348,17 +349,16 @@ test("gives-odd-body-row-to-current-and-redistributes-unused-space", () => {
     submitted24h: 1,
     submitted7d: 1,
   }));
-  const odd = renderText(value, { columns: 120, rows: 25 });
-  expect(odd).toContain("current-3");
-  expect(odd).not.toContain("current-4");
-  expect(odd).toContain("... 6 more; use oracle-top snapshot");
-  expect(odd).toContain("usage-2");
-  expect(odd).not.toContain("usage-3");
+  const odd = renderText(value, { columns: 120, rows: 24 });
+  expect(odd).toContain("current-4");
+  expect(odd).not.toContain("current-5");
+  expect(odd).toContain("... 5 more; use oracle-top snapshot");
+  expect(odd).toContain("usage-3");
+  expect(odd).not.toContain("usage-4");
   value.submittedMessages = [];
   const current = renderText(value, { columns: 120, rows: 24 });
-  expect(current).toContain("current-5");
-  expect(current).not.toContain("current-6");
-  expect(current).toContain("... 4 more; use oracle-top snapshot");
+  expect(current).toContain("current-9");
+  expect(current).not.toContain("more; use");
   expect(current).toContain("No submitted messages");
   value.currentSessions = [];
   value.submittedMessages = Array.from({ length: 9 }, (_, i) => ({
@@ -368,12 +368,11 @@ test("gives-odd-body-row-to-current-and-redistributes-unused-space", () => {
     submitted7d: 1,
   }));
   const usage = renderText(value, { columns: 120, rows: 24 });
-  expect(usage).toContain("usage-5");
-  expect(usage).not.toContain("usage-6");
-  expect(usage).toContain("... 3 more; use oracle-top snapshot");
+  expect(usage).toContain("usage-8");
+  expect(usage).not.toContain("more; use");
   expect(usage).toContain("No current sessions");
 });
-test("limits-tui-warning-summary-to-two-lines-and-full-text-keeps-all", () => {
+test("omits-tui-footer-and-keeps-full-snapshot-diagnostics", () => {
   const value = snapshot();
   value.currentSessions = Array.from({ length: 10 }, (_, i) => ({
     ...value.currentSessions![0]!,
@@ -391,12 +390,23 @@ test("limits-tui-warning-summary-to-two-lines-and-full-text-keeps-all", () => {
     code: "INVALID_JSON",
     sessionId: `warning-${i}`,
   }));
+  const before = JSON.stringify(value);
   const viewport = renderText(value, { columns: 120, rows: 26 });
-  expect(viewport).toContain("Warnings (5): use oracle-top snapshot");
-  expect(viewport).toContain("Values from readable records only");
-  expect(viewport).toContain("... 7 more; use oracle-top snapshot");
-  expect(viewport).toContain("... 6 more; use oracle-top snapshot");
+  for (const footer of [
+    "Oracle-only submission-operation counts",
+    "Requested model/effort.",
+    "Values from readable records only",
+    "Warnings (",
+    "warning-0",
+  ])
+    expect(viewport).not.toContain(footer);
+  expect(viewport).toContain("current-5");
+  expect(viewport).toContain("usage-4");
+  expect(viewport.split("\n").at(-1)).toBe(
+    "... 4 more; use oracle-top snapshot",
+  );
   expect(viewport.split("\n")).toHaveLength(25);
+  expect(JSON.stringify(value)).toBe(before);
   const full = renderText(value);
   for (const id of [
     "warning-0",
@@ -483,15 +493,12 @@ test("renders-unbounded-current-and-usage-tables-without-argument-overflow", () 
   expect(terminalLines).toHaveLength(31);
   expect(
     terminalLines.filter((line) => line.startsWith("running")).length,
-  ).toBe(6);
+  ).toBe(9);
   expect(terminalLines.filter((line) => line.startsWith("usage-")).length).toBe(
-    6,
+    8,
   );
-  expect(
-    terminalLines.filter(
-      (line) => line === "... 129994 more; use oracle-top snapshot",
-    ).length,
-  ).toBe(2);
+  expect(terminal).toContain("... 129991 more; use oracle-top snapshot");
+  expect(terminal).toContain("... 129992 more; use oracle-top snapshot");
   expect(terminal).toContain("current-first-sentinel");
   expect(terminal).toContain("usage-000000-first-sentinel");
   expect(terminal).not.toContain("current-last-sentinel");
@@ -519,7 +526,7 @@ test("keeps-late-protected-width-before-height-omission", () => {
     "Terminal too narrow: need 139 columns. Use oracle-top snapshot.",
   );
   const current = renderText(value, { columns: 139, rows: 19 });
-  expect(current).toContain("... 6 more; use oracle-top snapshot");
+  expect(current).toContain("... 3 more; use oracle-top snapshot");
   expect(current).not.toContain("日".repeat(50));
   expect(renderText(value)).toContain("日".repeat(50));
   for (const line of current.split("\n"))

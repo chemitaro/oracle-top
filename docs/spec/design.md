@@ -394,7 +394,7 @@ export interface DashboardSnapshot {
 | evaluated=0 | `successRate:null` |
 | active不明 | `utilization:null` |
 
-一部欠落時の成功率は「読めたレコード内の成功率」であり、全件の成功率の下限ではありません。TUI／単発テキストでは警告とともに `Values from readable records only` と表示します。
+一部欠落時の成功率は「読めたレコード内の成功率」であり、全件の成功率の下限ではありません。単発テキストでは警告とともに `Values from readable records only` と表示します。2026-10-01のユーザー変更指示に従い、TUIには下部の説明文・警告要約を表示しません。警告はSnapshotに保持し、単発text／JSONで確認できます。
 
 警告0件も、Oracle retention等で削除された履歴がないことまでは保証しません。
 
@@ -523,11 +523,11 @@ gpt-6-astra    pro          24    74
 gpt-5.6-sol    pro         118   632
 gpt-5.6-sol    high          3    18
 
-Oracle-only submission-operation counts; direct ChatGPT usage is excluded.
-Requested model/effort. Slots: selected profile; sessions: selected home.
 ```
 
 表示clockはOSのlocal timezoneとoffsetを使用します。集計とJSONはUTCです。
+
+2026-10-01のユーザー変更指示により、TUIは上記の4領域だけを表示します。下部のOracle-only／requested値／readable recordsの説明文と`Warnings (N): use oracle-top snapshot`は全て削除し、その行数を表へ配分します。単発textの注記と全警告、JSONのdataWarningsは保持します。
 
 ### 幅
 
@@ -558,7 +558,7 @@ Terminal too narrow: need N columns. Use oracle-top snapshot.
 
 最後の1行を予約し、残りを使用します。
 
-固定領域を先に組み立て、その実際の行数を `F` とします。固定領域には、見出し、reliability全値、注記、最大2行のwarning要約を含めます。
+固定領域を先に組み立て、その実際の行数を `F` とします。固定領域には、見出し、reliability全値を含めます。削除した下部注記・warning要約の行数は予約しません。
 
 残りのbody行をcurrent表とusage表へ半分ずつ配分し、奇数余りはcurrentへ渡します。片方の余りはもう片方へ渡します。
 
@@ -580,6 +580,8 @@ Terminal too narrow: need N columns. Use oracle-top snapshot.
 ## 5.8 CLI、poll、終了
 
 ### CLI
+
+2026-10-01のユーザー指示に従い、ソースの`bin/oracle-top`をグローバル起動用シェルスクリプトとします。このPCでは既存自作コマンドと同じ`/usr/local/bin/oracle-top`からリンクで起動します。スクリプトはリンク先のソースを解決し、nodenvが利用できればプロジェクトのNode 24を選びます。nodenvがなければPATHのNode 24を使います。`exec`でbuilt CLIへ引数をそのまま渡し、callerのcwd・HOME・Oracle用環境変数を変更しません。自動build・設定書換え・Oracle呼出しは行いません。npm配布物の既存binは引き続き`dist/cli.js`です。
 
 `--help`／`-h`、`--version`／`-V` は診断用として認めます。それ以外のコマンド・組合せは明示されたものに限定します。
 

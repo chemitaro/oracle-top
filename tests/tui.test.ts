@@ -214,9 +214,8 @@ test("coalesces-resize-without-collecting", async () => {
   h.output.emit("resize");
   h.timer.advance(0);
   await flush();
-  expect(h.output.frames.at(-1)).toContain(
-    "... 4 more; use oracle-top snapshot",
-  );
+  expect(h.output.frames.at(-1)).toContain("slug-9");
+  expect(h.output.frames.at(-1)).not.toContain("more; use oracle-top snapshot");
   expect(h.starts).toEqual([0]);
 });
 test("q-aborts-restores-and-removes-only-owned-resources", async () => {
