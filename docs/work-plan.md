@@ -64,8 +64,10 @@ P10初回候補はf33402a8dc664ff02f63c0b09bf9280ab8c64104へcheckpointしまし
 - [x] TUIのfooterをTDDで削除し、表の高さ配分・全件snapshotを回帰確認
 - [x] 全check、最新配布CLI／PTY、文書検証を完了
 - [x] 既存自作コマンドと同じ/usr/local/binへ配置し、グローバル起動・終了を確認
-- [ ] 実装報告・説明HTML・ZIPを同期し、検証済みの変更をcommit
+- [x] 実装報告・説明HTML・ZIPを同期し、検証済みの変更をcommit
 
 シェルlauncherはnodenvがあればプロジェクト指定のNode 24、なければPATHのNode 24を選び、`exec`でbuilt CLIへ引数をそのまま渡します。callerのcwd・HOME・Oracle用環境変数を変更せず、製品のread-only／offline境界を保持します。TUI注記の削除に合わせて表に行を戻し、数字の意味はREADME、警告の詳細は単発text／JSONで確認できる状態を維持します。
 
-全265件・14suite、format/typecheck/build、最新の隔離導入CLI6件・PTY9件、配置済みグローバルコマンドのPTY5件が成功しました。グローバルコマンドは/private/tmpから起動し、120×32/80×24、Ctrl-C130、SIGTERM143、連続resize、端末設定復元、footer不在、入力不変を確認しました。別cwdからの実Node24選択も照合しました。説明HTMLはsandboxのChrome起動失敗後、同じvalidatorを通常ホストで実行して成功しています。追加変更後の通常ホスト上の正式60秒性能もCPU4.6761%、peak RSS111.7344MiB、採取p9594.0583ms、30scan、scan/read peak1、入力不変で成功しました。文書同期・レビュー・commitを続けます。
+全265件・14suite、format/typecheck/build、最新の隔離導入CLI6件・PTY9件、配置済みグローバルコマンドのPTY5件が成功しました。グローバルコマンドは/private/tmpから起動し、120×32/80×24、Ctrl-C130、SIGTERM143、連続resize、端末設定復元、footer不在、入力不変を確認しました。別cwdからの実Node24選択も照合しました。説明HTMLはsandboxのChrome起動失敗後、同じvalidatorを通常ホストで実行して成功しています。追加変更後の通常ホスト上の正式60秒性能もCPU4.6761%、peak RSS111.7344MiB、採取p9594.0583ms、30scan、scan/read peak1、入力不変で成功しました。
+
+追加実装をd2a634dfb949a244c2824e81d8504c741a3a2504へcheckpointし、ユーザー指定f5b7451から全58ファイル・13コミットを同じ2軸で追加レビューしました。新規指摘は双方0です。元の履歴逸脱・保守候補・native細目の未確認は分離して保持し、今回のグローバル起動と下部文章削除は完了です。両結果とanalyze-review-findingsの対応判断はcode-review.mdへ記録しました。最後の文書/ZIP/manifestのみのcheckpointでは、製品・tests・harness・検証済みtarballを変更せず、文書とZIPの照合を実施します。remote pushは行いません。

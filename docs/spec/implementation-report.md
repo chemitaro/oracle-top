@@ -1,6 +1,6 @@
 # 実装報告
 
-状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。ユーザーの実起動確認後、グローバル用シェルlauncherとTUI下部文章の削除を追加しました。最新の全265テスト・14suite、format/typecheck/build、配布CLI6件・PTY9件、配置済みグローバルコマンドのPTY5件は成功です。元の内部対話PTYとユーザーの実起動確認も記録しています。寸法・終了経路ごとのnative画面記録は完了扱いせず、追加変更の検証・レビュー記録を後段へ追記します。
+状態: P02〜P10の実行コードとレビュー修復はcheckpoint済み。ユーザーの実起動確認後のグローバル用シェルlauncherとTUI下部文章削除も完了しました。最新の全265テスト・14suite、format/typecheck/build、配布CLI6件・PTY9件、配置済みグローバルコマンドのPTY5件は成功です。追加変更の2軸レビューも新規指摘なしです。元の内部対話PTYとユーザーの実起動確認も記録しています。寸法・終了経路ごとのnative画面記録は別に未確認を保持し、追加変更の検証・レビュー記録を後段に記載します。
 
 ## 実装環境と基準
 
@@ -897,6 +897,8 @@ viewportだけfooterを空にし、以前の固定行数をbodyへ戻しまし�
 
 今回のsourceSHAは`a9277feaad2416b64a146f786fd6392ffb886bae38be07daaf1cc747f6a7dc54`、distSHAは`d6b47c46ee0710222fab2b26b33817f5a804bb5b741adfee32c3dd42d1cf45b5`、shell launcher SHA256は`3da1c885c7417c54171f47711092b9a9284a01d15028615d433bf24e6bb3db91`です。最新tarballは`3483db39fd5dc444d68422935454a9370d77bb5d9dd2794000d083f417075e99`です。元logとproofは`.workbench/followup-global`に保持し、private fixture・ライブmetadataはGitへ入れません。
 
+追加変更はd2a634dfb949a244c2824e81d8504c741a3a2504へcheckpointしました。f5b7451から全58ファイル・13コミットの規約／仕様の独立レビューは、新規指摘0でした。75a84e7以前の調査を継承し、以後16ファイルを重点確認しています。両結果・全検証完了・候補HEAD/clean一致を照合し、analyze-review-findingsの分析と既存事項の扱いをcode-review.mdへ記録しました。今回の任意cwd起動とTUI下部文章削除は完了し、細目native記録の保留は元の受け入れとして別に保持します。最終checkpointはレビュー記録・文書・ZIP/manifestだけで、同じ製品の全検証を不要に再実行しません。
+
 ## 残工程と再開条件
 
 | 工程 | 状態 | 残る証拠 |
@@ -908,6 +910,6 @@ viewportだけfooterを空にし、以前の固定行数をbodyへ戻しまし�
 | P07 | checkpoint済み | 描画・Schemaの23テストとfocused履歴 |
 | P08 | checkpoint済み | CLI 25テスト、built argv／stdout／stderr／exit・pack dry-run |
 | P09 | checkpoint済み | TUI25件＋CLI追加5件、終了・復元・resize・非重複poll |
-| P10 | 元のcheckpoint・レビュー修復済み。追加変更の265件、配布CLI6／PTY9、global PTY5、正式性能は成功 | 追加変更のレビュー記録・checkpoint。細目native画面の描画・復元は別記録。45ケースpass、A21/A27/A28/A47は一部／未検証 |
+| P10 | 元のcheckpoint・レビュー修復済み。追加変更の265件、配布CLI6／PTY9、global PTY5、正式性能、2軸レビューとcheckpointは完了 | 細目native画面の描画・復元は別記録。45ケースpass、A21/A27/A28/A47は一部／未検証 |
 
 P10はP09 checkpoint後にbranch／HEAD／worktreeと所有範囲を再確認して開始しました。後続も`tdd`に従い、一つの公開振る舞いごとにテスト選択commandとRed／Greenのexit・件数をこのreportまたは`.workbench`のログへ残します。製品受け入れ全体は未完了です。
